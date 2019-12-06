@@ -1,1 +1,1 @@
-.
+# Soroban server in go
