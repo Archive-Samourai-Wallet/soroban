@@ -16,13 +16,19 @@ import (
 )
 
 type Soroban struct {
+	redis     *Redis
 	t         *tor.Tor
 	onion     *tor.OnionService
 	Ready     chan bool
 	rpcServer *rpc.Server
 }
 
-func New() *Soroban {
+func New(options Options) *Soroban {
+	redis := NewRedis(options.Redis)
+	if redis == nil {
+		log.Fatalf("Redis not found")
+	}
+
 	t, err := tor.Start(nil, nil)
 	if err != nil {
 		return nil
@@ -40,6 +46,7 @@ func New() *Soroban {
 		t:         t,
 		Ready:     make(chan bool),
 		rpcServer: rpcServer,
+		redis:     redis,
 	}
 }
 
