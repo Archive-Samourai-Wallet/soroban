@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -81,7 +82,13 @@ func (p *Soroban) Start(seed string) error {
 
 	go func() {
 		p.Ready <- true
-		err := http.Serve(p.onion, nil)
+		// Create http.Server with returning redis in context
+		srv := http.Server{
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return context.WithValue(ctx, SordobanRedisKey, p.redis)
+			},
+		}
+		err := srv.Serve(p.onion)
 		if err != http.ErrServerClosed {
 			log.Fatalf("Http Server error")
 		}

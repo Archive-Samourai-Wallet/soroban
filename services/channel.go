@@ -3,6 +3,8 @@ package services
 import (
 	"fmt"
 	"net/http"
+
+	soroban "code.samourai.io/wallet/samourai-soroban"
 )
 
 // Channel struct for json-rpc
@@ -15,6 +17,11 @@ type ChannelArgs struct {
 }
 
 func (t *Channel) Join(r *http.Request, args *ChannelArgs, result *Response) error {
+	redis := soroban.RedisFromContext(r.Context())
+	if redis == nil {
+		fmt.Println("Redis not found")
+		return nil
+	}
 	*result = Response{Result: fmt.Sprintf("%s joined channel %s", args.Identifier, args.Name)}
 	return nil
 }
