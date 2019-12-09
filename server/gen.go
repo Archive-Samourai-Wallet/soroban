@@ -1,4 +1,4 @@
-package soroban
+package server
 
 import (
 	"context"

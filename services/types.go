@@ -2,5 +2,5 @@
 package services
 
 type Response struct {
-	Result string
+	Status string
 }
