@@ -8,6 +8,7 @@ import (
 	"log"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	"code.samourai.io/wallet/samourai-soroban/services"
 )
 
 var (
@@ -38,8 +39,14 @@ func run() error {
 		return errors.New(("Fails to create Soroban server"))
 	}
 
+	channel := new(services.Channel)
+	err := server.Register(channel, "channel")
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+
 	fmt.Println("Staring soroban...")
-	err := server.Start(seed)
+	err = server.Start(seed)
 	if err != nil {
 		return err
 	}

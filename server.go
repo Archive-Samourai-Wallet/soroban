@@ -11,12 +11,15 @@ import (
 	"crypto/ed25519"
 
 	"github.com/cretz/bine/tor"
+	"github.com/gorilla/rpc"
+	"github.com/gorilla/rpc/json"
 )
 
 type Soroban struct {
-	t     *tor.Tor
-	onion *tor.OnionService
-	Ready chan bool
+	t         *tor.Tor
+	onion     *tor.OnionService
+	Ready     chan bool
+	rpcServer *rpc.Server
 }
 
 func New() *Soroban {
@@ -26,14 +29,17 @@ func New() *Soroban {
 	}
 	t.DeleteDataDirOnClose = true
 
-	// Add a handler
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, Soroban!"))
-	})
+	rpcServer := rpc.NewServer()
+
+	rpcServer.RegisterCodec(json.NewCodec(), "application/json")
+	rpcServer.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
+
+	http.Handle("/rpc", rpcServer)
 
 	return &Soroban{
-		t:     t,
-		Ready: make(chan bool),
+		t:         t,
+		Ready:     make(chan bool),
+		rpcServer: rpcServer,
 	}
 }
 
@@ -69,7 +75,7 @@ func (p *Soroban) Start(seed string) error {
 	go func() {
 		p.Ready <- true
 		err := http.Serve(p.onion, nil)
-		if err != nil {
+		if err != http.ErrServerClosed {
 			log.Fatalf("Http Server error")
 		}
 	}()
@@ -86,4 +92,8 @@ func (p *Soroban) Stop() {
 	if err != nil {
 		log.Printf("Fails to Close tor")
 	}
+}
+
+func (p *Soroban) Register(receiver interface{}, name string) error {
+	return p.rpcServer.RegisterService(receiver, name)
 }
