@@ -34,7 +34,12 @@ func run() error {
 		return nil
 	}
 
-	server := soroban.New()
+	server := soroban.New(soroban.Options{
+		Redis: soroban.OptionRedis{
+			Hostname: "localhost",
+			Port:     6379,
+		},
+	})
 	if server == nil {
 		return errors.New(("Fails to create Soroban server"))
 	}

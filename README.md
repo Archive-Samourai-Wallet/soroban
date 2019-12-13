@@ -1,5 +1,11 @@
 # Soroban server in go
 
+## Start redis server
+
+```bash
+docker-compose up -d redis
+```
+
 ## Start the server
 
 ### Generate onion address with prefix

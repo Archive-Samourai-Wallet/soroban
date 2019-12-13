@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -16,13 +17,19 @@ import (
 )
 
 type Soroban struct {
+	redis     *Redis
 	t         *tor.Tor
 	onion     *tor.OnionService
 	Ready     chan bool
 	rpcServer *rpc.Server
 }
 
-func New() *Soroban {
+func New(options Options) *Soroban {
+	redis := NewRedis(options.Redis)
+	if redis == nil {
+		log.Fatalf("Redis not found")
+	}
+
 	t, err := tor.Start(nil, nil)
 	if err != nil {
 		return nil
@@ -40,6 +47,7 @@ func New() *Soroban {
 		t:         t,
 		Ready:     make(chan bool),
 		rpcServer: rpcServer,
+		redis:     redis,
 	}
 }
 
@@ -74,7 +82,13 @@ func (p *Soroban) Start(seed string) error {
 
 	go func() {
 		p.Ready <- true
-		err := http.Serve(p.onion, nil)
+		// Create http.Server with returning redis in context
+		srv := http.Server{
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return context.WithValue(ctx, SordobanRedisKey, p.redis)
+			},
+		}
+		err := srv.Serve(p.onion)
 		if err != http.ErrServerClosed {
 			log.Fatalf("Http Server error")
 		}
