@@ -5,7 +5,9 @@ import (
 )
 
 type Options struct {
-	Directory ServerInfo
+	Domain        string
+	DirectoryType string
+	Directory     ServerInfo
 }
 
 type ServerInfo struct {

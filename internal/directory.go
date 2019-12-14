@@ -11,8 +11,8 @@ const (
 	DirectoryTypeRedis DirectoryType = "directory-redis"
 )
 
-func DefaultDirectory(options soroban.ServerInfo) soroban.Directory {
-	return NewDirectory("samourai", DirectoryTypeRedis, options)
+func DefaultDirectory(domain string, options soroban.ServerInfo) soroban.Directory {
+	return NewDirectory(domain, DirectoryTypeRedis, options)
 }
 
 func NewDirectory(domain string, DirectoryType DirectoryType, options soroban.ServerInfo) soroban.Directory {

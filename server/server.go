@@ -28,7 +28,14 @@ type Soroban struct {
 }
 
 func New(ctx context.Context, options soroban.Options) *Soroban {
-	directory := internal.DefaultDirectory(options.Directory)
+	var directory soroban.Directory
+
+	switch options.DirectoryType {
+	case "redis":
+		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeRedis, options.Directory)
+	case "default":
+		directory = internal.DefaultDirectory(options.Domain, options.Directory)
+	}
 	if directory == nil {
 		log.Fatalf("Invalid Directory")
 	}

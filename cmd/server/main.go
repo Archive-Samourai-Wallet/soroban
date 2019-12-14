@@ -15,13 +15,42 @@ import (
 
 var (
 	prefix string
+
+	domain string
 	seed   string
+
+	directoryType string
+	directoryHost string
+	directoryPort int
 )
 
 func init() {
+	// GenKey
 	flag.StringVar(&prefix, "prefix", "", "Generate Onion with prefix")
+
+	// Server
+	flag.StringVar(&domain, "domain", "", "Directory Domain")
 	flag.StringVar(&seed, "seed", "", "Onion private key seed")
+
+	flag.StringVar(&directoryHost, "directoryType", "", "Directory Type (default, redis)")
+	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
+	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
+
 	flag.Parse()
+
+	if len(domain) == 0 {
+		domain = "samourai"
+	}
+
+	if len(directoryType) == 0 {
+		directoryType = "default"
+	}
+	if len(directoryHost) == 0 {
+		directoryHost = "localhost"
+	}
+	if directoryPort == 0 {
+		directoryPort = 6379
+	}
 }
 
 func main() {
@@ -40,9 +69,11 @@ func run() error {
 
 	soroban := server.New(ctx,
 		soroban.Options{
+			Domain:        domain,
+			DirectoryType: directoryType,
 			Directory: soroban.ServerInfo{
-				Hostname: "localhost",
-				Port:     6379,
+				Hostname: directoryHost,
+				Port:     directoryPort,
 			},
 		},
 	)
