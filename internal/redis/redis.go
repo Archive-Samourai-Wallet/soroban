@@ -49,6 +49,28 @@ func NewWithDomain(domain string, options soroban.ServerInfo) *Redis {
 	}
 }
 
+// TimeToLive return duration from mode.
+func (r *Redis) TimeToLive(mode string) time.Duration {
+	if len(mode) == 0 {
+		mode = "default"
+	}
+
+	switch mode {
+	case "short":
+		return time.Minute
+
+	case "long":
+		return 5 * time.Minute
+
+	case "normal":
+		fallthrough
+	case "default":
+		fallthrough
+	default:
+		return 3 * time.Minute
+	}
+}
+
 // List return all known values for this key.
 func (r *Redis) List(key string) ([]string, error) {
 	if len(key) == 0 {
@@ -166,14 +188,14 @@ func (r *Redis) Remove(key, value string) error {
 		return RemoveErr
 	}
 
-	// remove counter key on last remove
+	// reduce expire counter key on last remove
 	n, err = r.rdb.SCard(key).Result()
 	if err != nil {
 		return RemoveErr
 	}
 	if n == 0 {
 		keyCounter := countHash(r.domain, key)
-		_, err = r.rdb.Del(keyCounter).Result()
+		_, err = r.rdb.Expire(keyCounter, 15*time.Second).Result()
 		if err != nil {
 			return RemoveErr
 		}

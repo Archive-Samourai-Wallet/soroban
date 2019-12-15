@@ -3,7 +3,6 @@ package services
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"code.samourai.io/wallet/samourai-soroban/internal"
 )
@@ -18,6 +17,7 @@ type DirectoryEntries struct {
 type DirectoryEntry struct {
 	Name  string
 	Entry string
+	Mode  string
 }
 
 // Directory struct for json-rpc
@@ -56,7 +56,7 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 	log.Printf("Add: %s %s", args.Name, args.Entry)
 
 	status := "success"
-	err := directory.Add(args.Name, args.Entry, 30*time.Minute)
+	err := directory.Add(args.Name, args.Entry, directory.TimeToLive(args.Mode))
 	if err != nil {
 		status = "error"
 		log.Printf("Failed to Add entry. %s", err)

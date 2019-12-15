@@ -27,6 +27,9 @@ type Soroban interface {
 
 // Directory interface
 type Directory interface {
+	// TimeToLive return duration from mode.
+	TimeToLive(mode string) time.Duration
+
 	// List return all known values for this key.
 	List(key string) ([]string, error)
 
