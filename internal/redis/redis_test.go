@@ -76,9 +76,14 @@ func TestRedis_List(t *testing.T) {
 	directory := New(soroban.ServerInfo{Hostname: "127.0.0.1", Port: 6379})
 
 	key := randSeq(12)
-	value := randSeq(12)
 
-	_ = directory.Add(key, value, 1*time.Second)
+	// store multiple values and check order is kept
+	var values []string
+	for i := 0; i < 10; i++ {
+		value := randSeq(12)
+		_ = directory.Add(key, value, 1*time.Second)
+		values = append(values, value)
+	}
 
 	type fields struct {
 		directory soroban.Directory
@@ -95,7 +100,7 @@ func TestRedis_List(t *testing.T) {
 	}{
 		{"KeyErr", fields{directory}, args{""}, nil, true},
 		{"Unknown", fields{directory}, args{randSeq(12)}, nil, false},
-		{"Get", fields{directory}, args{key}, []string{value}, false},
+		{"Get", fields{directory}, args{key}, values, false},
 	}
 	for _, tt := range tests {
 		tt := tt

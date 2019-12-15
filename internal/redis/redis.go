@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"sync"
+	"strconv"
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
@@ -20,9 +20,6 @@ var (
 )
 
 type Redis struct {
-	sync.Mutex
-	nonce uint64
-
 	domain string
 	rdb    *redis.Client
 }
@@ -67,14 +64,14 @@ func (r *Redis) List(key string) ([]string, error) {
 		return nil, nil
 	}
 
-	// sort with nonce prefix
+	// sort with counter prefix
 	sort.Slice(values, func(i, j int) bool {
 		n1, _ := parseValue(values[i])
 		n2, _ := parseValue(values[j])
 		return n1 < n2
 	})
 
-	// remove nonce prefix frpm value
+	// remove counter prefix from value
 	for i := 0; i < len(values); i++ {
 		_, value := parseValue(values[i])
 		values[i] = value
@@ -93,21 +90,39 @@ func (r *Redis) Add(key, value string, TTL time.Duration) error {
 	}
 
 	key = keyHash(r.domain, key)
+	keyCounter := countHash(r.domain, key)
+	valueHashKey := valueHash(r.domain, value)
 
-	nonce := r.nextNonce(value)
-	_, err := r.rdb.Set(nonceHash(r.domain, value), nonce, TTL).Result()
+	// check if valueHashKey exists
+	exists, err := r.rdb.Exists(valueHashKey).Result()
 	if err != nil {
 		return AddErr
 	}
 
-	value = formatValue(value, nonce)
-	_, err = r.rdb.SAdd(key, value).Result()
-	if err != nil {
-		return AddErr
+	// if value not exists
+	if exists == 0 {
+		// get next absolut counter
+		counter, err := r.rdb.Incr(keyCounter).Result()
+		if err != nil {
+			return AddErr
+		}
+		// set counter in valueHashKey
+		ok, err := r.rdb.Set(valueHashKey, counter, TTL).Result()
+		if err != nil || ok != "OK" {
+			return AddErr
+		}
+
+		// store formated value in key
+		n, err := r.rdb.SAdd(key, formatValue(counter, value)).Result()
+		if err != nil || n != 1 {
+			return AddErr
+		}
 	}
 
-	// Set or extend key's lifetime
+	// Set or extend keys lifetime
 	r.rdb.Expire(key, TTL)
+	r.rdb.Expire(keyCounter, TTL)
+	r.rdb.Expire(valueHashKey, TTL)
 
 	return nil
 }
@@ -117,26 +132,39 @@ func (r *Redis) Remove(key, value string) error {
 		return InvalidArgsErr
 	}
 	key = keyHash(r.domain, key)
+	valueHashKey := valueHash(r.domain, value)
 
-	nKey := nonceHash(r.domain, value)
-	nonce := r.rdb.Get(nKey).Val()
-	_, err := r.rdb.Del(nKey).Result()
+	// check if valueHashKey exists
+	exists, err := r.rdb.Exists(valueHashKey).Result()
+	if err != nil {
+		return RemoveErr
+	}
+	// no error if not exists
+	if exists == 0 {
+		return nil
+	}
+
+	// retrieve absolut counter for formated value
+	counterStr, err := r.rdb.Get(valueHashKey).Result()
+	if err != nil {
+		return err
+	}
+	counter, err := strconv.ParseInt(counterStr, 10, 64)
 	if err != nil {
 		return RemoveErr
 	}
 
-	_, err = r.rdb.SRem(key, formatValue(value, nonce)).Result()
-	if err != nil {
+	// delete absolut counter
+	n, err := r.rdb.Del(valueHashKey).Result()
+	if err != nil || n != 1 {
+		return RemoveErr
+	}
+
+	// remove formated value from key
+	n, err = r.rdb.SRem(key, formatValue(counter, value)).Result()
+	if err != nil || n != 1 {
 		return RemoveErr
 	}
 
 	return nil
-}
-
-func (r *Redis) nextNonce(value string) string {
-	r.Lock()
-	defer r.Unlock()
-	r.nonce++
-
-	return fmt.Sprintf("%d", r.nonce)
 }

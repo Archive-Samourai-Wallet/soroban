@@ -21,19 +21,24 @@ func parseValue(value string) (uint64, string) {
 	return nonce, toks[1]
 }
 
-func formatValue(value, nonce string) string {
-	// add nonce prefix
-	return fmt.Sprintf("%s_%s", nonce, value)
+func formatValue(counter int64, value string) string {
+	// add counter prefix
+	return fmt.Sprintf("%d_%s", counter, value)
 }
 
 func hash(domain, prefix, value string) string {
 	return fmt.Sprintf("%s:%x", prefix, sha256.Sum256([]byte(domain+value)))
 
 }
-func nonceHash(domain, nonce string) string {
-	return hash(domain, "n", nonce)
-}
 
 func keyHash(domain, key string) string {
 	return hash(domain, "k", key)
+}
+
+func countHash(domain, count string) string {
+	return hash(domain, "c", count)
+}
+
+func valueHash(domain, value string) string {
+	return hash(domain, "v", value)
 }
