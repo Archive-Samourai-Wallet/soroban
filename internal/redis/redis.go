@@ -166,5 +166,18 @@ func (r *Redis) Remove(key, value string) error {
 		return RemoveErr
 	}
 
+	// remove counter key on last remove
+	n, err = r.rdb.SCard(key).Result()
+	if err != nil {
+		return RemoveErr
+	}
+	if n == 0 {
+		keyCounter := countHash(r.domain, key)
+		_, err = r.rdb.Del(keyCounter).Result()
+		if err != nil {
+			return RemoveErr
+		}
+	}
+
 	return nil
 }
