@@ -14,20 +14,45 @@ import org.apache.commons.codec.DecoderException;
 public final class SorobanClient {
 
     public static void main(String[] args) throws IOException {
-        RpcClient rpc = new RpcClient("127.0.0.1", 9050, "http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion");
+
+        // parse cli
+        String torProxy = "127.0.0.1";
+        int torPort = 9050;
+        String torUrl = "http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion";
+        String role = "contributor";
+        String directoryName = "samourai.soroban.private";
+        int numInter = 3;
+
+        if (args.length > 0){
+            torProxy = args[0];
+        }
+        if (args.length > 1){
+            torPort = Integer.parseInt(args[1]);
+        }
+        if (args.length > 2){
+            torUrl = args[2];
+        }
+        if (args.length > 3){
+            role = args[3];
+        }
+        if (args.length > 4){
+            directoryName = args[4];
+        }
+        if (args.length > 5){
+            numInter = Integer.parseInt(args[5]);
+        }
+
+        RpcClient rpc = new RpcClient(torProxy, torPort, torUrl);
         try {
-            Boolean initiator = true;
             Boolean hashEncode = true;
-            String directoryName = "samourai.soroban.private";
             if (hashEncode) {
                 directoryName = RpcClient.encodeDirectory(directoryName);   
             }
 
             while (true) {
-                if (initiator) {
-                    SorobanClient.initiator(rpc, directoryName, hashEncode, 3);
-                } else {
-                    SorobanClient.contributor(rpc, directoryName, hashEncode, 3);
+                switch(role) {
+                    case "initiator": SorobanClient.initiator(rpc, directoryName, hashEncode, numInter); break;
+                    case "contributor": SorobanClient.contributor(rpc, directoryName, hashEncode, numInter); break;
                 }
             }
 
