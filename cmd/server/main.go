@@ -8,6 +8,8 @@ import (
 	"log"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	"code.samourai.io/wallet/samourai-soroban/server"
+
 	"code.samourai.io/wallet/samourai-soroban/services"
 )
 
@@ -30,38 +32,41 @@ func main() {
 
 func run() error {
 	if len(prefix) > 0 {
-		soroban.GenKey(prefix)
+		server.GenKey(prefix)
 		return nil
 	}
 
-	server := soroban.New(soroban.Options{
-		Redis: soroban.OptionRedis{
-			Hostname: "localhost",
-			Port:     6379,
+	ctx := context.Background()
+
+	soroban := server.New(ctx,
+		soroban.Options{
+			Directory: soroban.ServerInfo{
+				Hostname: "localhost",
+				Port:     6379,
+			},
 		},
-	})
-	if server == nil {
-		return errors.New(("Fails to create Soroban server"))
+	)
+	if soroban == nil {
+		return errors.New("Fails to create Soroban server")
 	}
 
-	channel := new(services.Channel)
-	err := server.Register(channel, "channel")
+	err := services.RegisterAll(soroban)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	fmt.Println("Staring soroban...")
-	err = server.Start(seed)
+	err = soroban.Start(seed)
 	if err != nil {
 		return err
 	}
-	defer server.Stop()
+	defer soroban.Stop()
 
-	<-server.Ready
+	soroban.WaitForStart()
 
-	fmt.Printf("Sordoban started: http://%s.onion\n", server.ID())
+	fmt.Printf("Sordoban started: http://%s.onion\n", soroban.ID())
 
-	<-context.Background().Done()
+	<-ctx.Done()
 
 	return nil
 }
