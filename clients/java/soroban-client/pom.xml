@@ -12,9 +12,9 @@
     <dependencies>
 
         <dependency>
-            <groupId>com.codahale</groupId>
-            <artifactId>xsalsa20poly1305</artifactId>
-            <version>0.11.0</version>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <version>1.64</version>
         </dependency>
 
 
