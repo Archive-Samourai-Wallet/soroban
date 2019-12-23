@@ -1,0 +1,2 @@
+PyNaCl
+requests[socks]>=2.22.0
