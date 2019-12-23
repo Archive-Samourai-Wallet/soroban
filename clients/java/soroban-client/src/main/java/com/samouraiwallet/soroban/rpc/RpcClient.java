@@ -3,10 +3,14 @@ package com.samouraiwallet.soroban.rpc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import com.samouraiwallet.soroban.tor.TorHttpHelper;
 
@@ -14,6 +18,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.apache.commons.codec.binary.Hex;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -120,5 +125,37 @@ public class RpcClient {
         Map<?, ?> result = (Map<?, ?>) rpc.get("result");
         String status = result.get("Status").toString();
         return status.equals("success");
+    }
+
+    public String waitAndRemove(String name, int count) throws InterruptedException, TimeoutException, IOException {
+        String[] values = new String[0];
+
+        int total = count;
+        count = 0;
+        while (count < total) {
+            values = directoryList(name);
+            count++;
+            if (values.length > 0 || count >= total) {
+                break;
+            }
+            Thread.sleep(200);
+        }
+
+        if (count >= total) {
+            throw new TimeoutException(String.format("Wait on %s", name.substring(0, 8)));
+        }
+
+        System.out.println(String.format("Wait try count (%d/%d)", count + 1, total));
+
+        // consider last entry
+        String value = values[values.length - 1];
+        directoryRemove(name, value);
+        return value;
+    }
+
+    public static String encodeDirectory(String name) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(name.getBytes(StandardCharsets.UTF_8));
+        return Hex.encodeHexString(hash);
     }
 }

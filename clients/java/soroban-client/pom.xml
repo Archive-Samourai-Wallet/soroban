@@ -12,6 +12,13 @@
     <dependencies>
 
         <dependency>
+            <groupId>com.codahale</groupId>
+            <artifactId>xsalsa20poly1305</artifactId>
+            <version>0.11.0</version>
+        </dependency>
+
+
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.10.1</version>

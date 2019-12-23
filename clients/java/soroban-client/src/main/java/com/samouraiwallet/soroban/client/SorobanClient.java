@@ -1,47 +1,204 @@
 package com.samouraiwallet.soroban.client;
 
 import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.util.concurrent.TimeoutException;
 
 import com.samouraiwallet.soroban.rpc.RpcClient;
+import com.samouraiwallet.soroban.User;
+import com.samouraiwallet.soroban.Box;
 
+import org.apache.commons.codec.DecoderException;
 
 public final class SorobanClient {
 
     public static void main(String[] args) throws IOException {
         RpcClient rpc = new RpcClient("127.0.0.1", 9050, "http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion");
-        try{
-            // add hello key to directory
-            if (!rpc.directoryAdd("hello_java", "Hello, from Java!", "short")) {
-                System.err.println("Failed to add entry to directory");
-                return;
+        try {
+            Boolean initiator = true;
+            Boolean hashEncode = true;
+            String directoryName = "samourai.soroban.private";
+            if (hashEncode) {
+                directoryName = RpcClient.encodeDirectory(directoryName);   
             }
-            System.out.println("Entry added to directoy.");
 
-            // retieve hello key from directory
-            String[] entries = rpc.directoryList("hello_java");
-            if (entries.length == 0 ){
-                System.err.println("Entry not found from directory");
-                return;
+            while (true) {
+                if (initiator) {
+                    SorobanClient.initiator(rpc, directoryName, hashEncode, 3);
+                } else {
+                    SorobanClient.contributor(rpc, directoryName, hashEncode, 3);
+                }
             }
-            System.out.println("Entry found in directory: " + entries[0]);
 
-            // remove hello key from directory
-            if (!rpc.directoryRemove("hello_java", "Hello, from Java!")){
-                System.err.println("Failed to remove entry from directory");
-                return;
-            }
-            System.out.println("Entry removed from directoy.");
-
-            // retieve hello key from directory
-            entries = rpc.directoryList("hello_java");
-            if (entries.length != 0 ){
-                System.err.println("Found deleted entry from directory");
-                return;
-            }
-            System.out.println("Finished with no entries in directory.");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
         } finally {
             rpc.close();
         }
     }
+
+    static void initiator(RpcClient rpc, String directoryName, Boolean hashEncode, int numIter) {
+        User user = new User();
+        try{
+            System.out.println("Registering public_key");
+            rpc.directoryAdd(directoryName, user.publicKey(), "long");
+
+            String privateDirectory = String.format("%s.%s", directoryName, user.publicKey());
+            if (hashEncode) {
+                privateDirectory = RpcClient.encodeDirectory(privateDirectory);   
+            }
+
+            String candidatePublicKey = rpc.waitAndRemove(privateDirectory, 100);
+            if (candidatePublicKey.isEmpty()){
+                System.out.println("Invalid candidate_publicKey");
+                
+            }
+            System.out.println("candidate publicKey found");
+            System.out.println(candidatePublicKey);
+
+            Box box = user.box(candidatePublicKey);
+            String nextDirectory = RpcClient.encodeDirectory(user.sharedSecret(box));
+            if (nextDirectory.isEmpty()){
+                System.out.println("Invalid reponse next_directory");
+                return;
+            }
+            System.out.printf("nextDirectory: %s%n", nextDirectory);
+
+            String payload;
+            System.out.println("Starting echange loop...");
+            int counter = 1;
+            while (numIter>0) {
+                // request
+                System.out.println("Sending : Ping");
+                payload = box.encrypt(String.format("Ping %d %s", counter, LocalDateTime.now()));
+                if (payload.isEmpty()) {
+                    System.out.println("Invalid Ping message");
+                    return;
+                }
+
+                rpc.directoryAdd(nextDirectory, payload, "short");
+                nextDirectory = RpcClient.encodeDirectory(payload);
+                if (nextDirectory.isEmpty()){
+                    System.out.println("Invalid reponse next_directory");
+                    return;
+                }
+
+                // response
+                payload = rpc.waitAndRemove(nextDirectory, 10);
+                nextDirectory = RpcClient.encodeDirectory(payload);
+                if (nextDirectory.isEmpty()) {
+                    System.out.println("Invalid reponse next_directory");
+                    return;
+                }
+
+                String message = box.decrypt(payload);
+                if (message.isEmpty()){
+                    System.out.println("Invalid reponse message");
+                    return;
+                }
+                System.out.println(String.format("Recieved: %s", message));
+                counter += 1;
+                numIter -= 1;
+            }
+                
+        } catch(NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch(DecoderException e) {
+            e.printStackTrace();
+        } catch(TimeoutException e) {
+            e.printStackTrace();
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    static void contributor(RpcClient rpc, String directoryName, Boolean hashEncode, int numIter) {
+        User user = new User();
+        try{
+            System.out.println("Waiting for initiator publicKey");
+            String initiatorPublicKey = rpc.waitAndRemove(directoryName, 10);
+            if (initiatorPublicKey.isEmpty()){
+                System.out.println("Invalid initiator publicKey");
+            }
+            System.out.println("Initiator publicKey found");
+            String privateDirectory = String.format("%s.%s", directoryName, initiatorPublicKey);
+            if (hashEncode) {
+                privateDirectory = RpcClient.encodeDirectory(privateDirectory);   
+            }
+
+            System.out.println("Sending public_key");
+            rpc.directoryAdd(privateDirectory, user.publicKey(), "default");
+
+            Box box = user.box(initiatorPublicKey);
+            String nextDirectory = RpcClient.encodeDirectory(user.sharedSecret(box));
+            if (nextDirectory.isEmpty()){
+                System.out.println("Invalid next_directory (start)");
+                return;
+            }
+
+            String payload;
+            System.out.println("Starting echange loop...");
+            int counter = 1;
+            while (numIter>0) {
+                // query
+                payload = rpc.waitAndRemove(nextDirectory, 10);
+                if (payload.isEmpty()) {
+                    System.out.println("Invalid payload (query)");
+                    return;
+                }
+                nextDirectory = RpcClient.encodeDirectory(payload);
+                if (nextDirectory.isEmpty()) {
+                    System.out.println("Invalid next_directory (query)");
+                    return;
+                }
+
+                String message = box.decrypt(payload);
+                if (message.isEmpty()){
+                    System.out.println("Invalid reponse message");
+                    return;
+                }
+
+                // request
+                System.out.println("Sending : Ping");
+                payload = box.encrypt(String.format("Ping %d %s", counter, LocalDateTime.now()));
+                if (payload.isEmpty()) {
+                    System.out.println("Invalid query");
+                    return;
+                }
+                System.out.printf("Recieved: %s%n", message);
+
+                // response
+                System.out.printf("Replying: %s%n", "Pong");
+                payload = box.encrypt(String.format("Pong %d %s", counter, LocalDateTime.now()));
+                if (payload.isEmpty()) {
+                    System.out.println("Invalid payload (reply)");
+                    return;
+                }
+                rpc.directoryAdd(nextDirectory, payload, "short");
+
+                nextDirectory = RpcClient.encodeDirectory(payload);
+                if (nextDirectory.isEmpty()) {
+                    System.out.println("Invalid next_directory (response)");
+                    return;
+                }
+
+                counter += 1;
+                numIter -= 1;
+            }
+                
+        } catch(NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch(DecoderException e) {
+            e.printStackTrace();
+        } catch(TimeoutException e) {
+            e.printStackTrace();
+        } catch(InterruptedException e) {
+            e.printStackTrace();
+        } catch(IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
-    
