@@ -1,0 +1,34 @@
+version: '3'
+services:
+  torproxy:
+    image: samourai-tor
+    command: [
+        "-f", "/usr/local/etc/tor/torrc.socks"
+    ]
+    restart: always
+
+  initiator:
+    build: .
+    restart: always
+    links:
+      - torproxy
+    command: [
+      "torproxy", "9150",
+      "http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion",
+      "initiator",
+      "samourai.soroban.docker",
+      "3"
+    ]
+
+  contributor:
+    build: .
+    restart: always
+    links:
+      - torproxy
+    command: [
+      "torproxy", "9150",
+      "http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion",
+      "contributor",
+      "samourai.soroban.docker",
+      "3"
+      ]
