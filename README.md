@@ -12,25 +12,25 @@ Note: modify `seed` in `docker-compose.yml` server command to change hidden serv
 ### Build docker images
 
 ```bash
-sh soroban.sh build
+bash soroban.sh build
 ```
 
 ### Start server services
 
 ```bash
-sh soroban.sh server_start
+bash soroban.sh server_start
 ```
 
 ### Stop server services
 
 ```bash
-sh soroban.sh server_stop
+bash soroban.sh server_stop
 ```
 
 ## Server services status
 
 ```bash
-sh soroban.sh server_status
+bash soroban.sh server_status
 ```
 
 ## Start the clients
@@ -38,23 +38,23 @@ sh soroban.sh server_status
 Note: modify `url` in `docker-compose.yml` (`clients/python` & `clients/java`) regarding hidden service `onion` address.
 
 ```bash
-sh soroban.sh clients_start
+bash soroban.sh clients_start
 ```
 
 ## Stop the clients
 
 ```bash
-sh soroban.sh clients_stop
+bash soroban.sh clients_stop
 ```
 
 ## Logs the clients
 
 ```bash
-sh soroban.sh clients_python_logs
+bash soroban.sh clients_python_logs
 ```
 
 ```bash
-sh soroban.sh clients_java_logs
+bash soroban.sh clients_java_logs
 ```
 
 ## Development

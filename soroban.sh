@@ -1,5 +1,5 @@
-#!/bin/sh
-set -euo pipefail 
+#!/bin/bash
+set -eu 
 DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 
 usage () {
