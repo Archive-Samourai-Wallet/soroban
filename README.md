@@ -1,12 +1,63 @@
 # Soroban server in go
 
-## Start redis server
+## Docker Install
+
+Dependencies: `docker` & `docker-compose`
+
+
+## Using the provided script
+
+Note: modify `seed` in `docker-compose.yml` server command to change hidden service address.
+
+### Build docker images
 
 ```bash
-docker-compose up -d redis
+sh soroban.sh build
 ```
 
-## Start the server
+### Start server services
+
+```bash
+sh soroban.sh server_start
+```
+
+### Stop server services
+
+```bash
+sh soroban.sh server_stop
+```
+
+## Server services status
+
+```bash
+sh soroban.sh server_status
+```
+
+## Start the clients
+
+Note: modify `url` in `docker-compose.yml` (`clients/python` & `clients/java`) regarding hidden service `onion` address.
+
+```bash
+sh soroban.sh clients_start
+```
+
+## Stop the clients
+
+```bash
+sh soroban.sh clients_stop
+```
+
+## Logs the clients
+
+```bash
+sh soroban.sh clients_python_logs
+```
+
+```bash
+sh soroban.sh clients_java_logs
+```
+
+## Development
 
 ### Generate onion address with prefix
 
