@@ -29,7 +29,7 @@ soroban () {
         watch docker-compose -f ${DIR}/docker-compose.yml ps;;
 
     "server_logs")
-        docker-compose -f ${DIR}/docker-compose.yml logs -f;;
+        docker-compose -f ${DIR}/docker-compose.yml logs -f --tail=100;;
 
     "clients_build")
         docker-compose -f ${DIR}/clients/python/docker-compose.yml build
