@@ -15,6 +15,7 @@ import (
 	"code.samourai.io/wallet/samourai-soroban/internal"
 
 	"github.com/cretz/bine/tor"
+	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc"
 	"github.com/gorilla/rpc/json"
 )
@@ -102,12 +103,16 @@ func (p *Soroban) Start(seed string) error {
 
 	go func() {
 		p.started <- true
+		router := mux.NewRouter()
+		router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
+		router.HandleFunc("/status", StatusHandler)
+
 		// Create http.Server with returning redis in context
 		srv := http.Server{
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 				return context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
 			},
-			Handler: WrapHandler(p.rpcServer),
+			Handler: router,
 		}
 		err := srv.Serve(p.onion)
 		if err != http.ErrServerClosed {
