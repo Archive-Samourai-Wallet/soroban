@@ -73,5 +73,9 @@ func StatusHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Directory status error", http.StatusInternalServerError)
 	}
 
+	// prepare response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
 	fmt.Fprint(w, string(data))
 }
