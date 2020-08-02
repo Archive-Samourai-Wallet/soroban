@@ -57,6 +57,31 @@ bash soroban.sh clients_python_logs
 bash soroban.sh clients_java_logs
 ```
 
+## Monitoring
+
+Api entpoint for service status can be reached on `/status`
+
+Query string `filters` can be use to filter additional information.
+
+- `default` (`cpu,clients,keyspace`)
+- `cpu`
+- `clients`
+- `keyspace`
+- `memory`
+- `stats`
+
+Default: 
+
+```bash
+curl -s --socks5-hostname 0.0.0.0:9050 -X GET -o - http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion/status?filters=cpu,clients,keyspace
+```
+
+Wildcard: 
+
+```bash
+curl -s --socks5-hostname 0.0.0.0:9050 -X GET -o - http://sorzvujomsfbibm7yo3k52f3t2bl6roliijnm7qql43bcoe2kxwhbcyd.onion/status?filters=*
+```
+
 ## Development
 
 ### Generate onion address with prefix
