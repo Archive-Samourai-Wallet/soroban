@@ -27,8 +27,27 @@ type Soroban interface {
 	WaitForStart()
 }
 
+type NameValue map[string]string
+
+type StatusInfo struct {
+	Clients      NameValue `json:"clients,omitempty"`
+	Cluster      NameValue `json:"cluster,omitempty"`
+	Commandstats NameValue `json:"commandstats,omitempty"`
+	CPU          NameValue `json:"cpu,omitempty"`
+	Keyspace     NameValue `json:"keyspace,omitempty"`
+	Memory       NameValue `json:"memory,omitempty"`
+	Persistence  NameValue `json:"persistence,omitempty"`
+	Replication  NameValue `json:"replication,omitempty"`
+	Server       NameValue `json:"server,omitempty"`
+	Stats        NameValue `json:"stats,omitempty"`
+	Raw          string    `json:"_raw,omitempty"`
+}
+
 // Directory interface
 type Directory interface {
+	// Status returs internal informations
+	Status() (StatusInfo, error)
+
 	// TimeToLive return duration from mode.
 	TimeToLive(mode string) time.Duration
 

@@ -1,10 +1,13 @@
 package redis
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
@@ -69,6 +72,61 @@ func (r *Redis) TimeToLive(mode string) time.Duration {
 	default:
 		return 3 * time.Minute
 	}
+}
+
+// Status returs internal informations
+func (r *Redis) Status() (soroban.StatusInfo, error) {
+	result, err := r.rdb.Info("all").Result()
+	if err != nil {
+		return soroban.StatusInfo{}, err
+	}
+
+	// parse redis bulk string
+	obj := make(map[string]interface{})
+	sectionName := ""
+	section := obj
+	scanner := bufio.NewScanner(strings.NewReader(result))
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// create sub-sections
+		if strings.HasPrefix(line, "#") {
+			sectionName = strings.Trim(line, "# ")
+			sectionName = strings.Replace(sectionName, " ", "_", -1)
+			sectionName = strings.ToLower(sectionName)
+
+			// create & add new section to obj
+			section = make(map[string]interface{})
+			obj[sectionName] = section
+			continue
+		}
+
+		// check for key:value
+		toks := strings.Split(line, ":")
+		if len(toks) != 2 {
+			continue
+		}
+
+		// add key/value to section
+		section[toks[0]] = toks[1]
+	}
+	// add original data to private field
+	obj["_raw"] = result
+
+	// convert to json
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return soroban.StatusInfo{}, err
+	}
+
+	// convert back to StatusInfo
+	var info soroban.StatusInfo
+	err = json.Unmarshal(data, &info)
+	if err != nil {
+		return soroban.StatusInfo{}, err
+	}
+
+	return info, nil
 }
 
 // List return all known values for this key.
