@@ -103,3 +103,8 @@ Seed:  169fc9f1925eec11b6a728044c9f4e6dd1a676a4f4e6f640c4100015644914e8
 ```bash
 go run cmd/server/main.go -seed 5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d
 ```
+
+## License
+AGPL 3.0
+
+
