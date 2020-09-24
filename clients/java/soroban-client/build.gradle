@@ -1,0 +1,57 @@
+plugins {
+    id 'java'
+}
+
+apply plugin : "java"
+
+repositories {
+    mavenLocal()
+    maven {
+        url = 'https://repo.maven.apache.org/maven2'
+    }
+}
+
+dependencies {
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.64'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.10.1'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.10'
+}
+
+group = 'com.samouraiwallet.soroban.client'
+version = '1.0-SNAPSHOT'
+sourceCompatibility = '1.8'
+
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+ext {
+   javaMainClass = "com.samouraiwallet.soroban.client.SorobanClient"
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': javaMainClass,
+            'Implementation-Version': version,
+        )
+    }
+}
+
+task dist(type: Jar) {
+    manifest.from jar.manifest
+    classifier = 'all'
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    } {
+        exclude "META-INF/*.SF"
+        exclude "META-INF/*.DSA"
+        exclude "META-INF/*.RSA"
+    }
+    with jar
+}
+
+artifacts {
+    archives dist
+}

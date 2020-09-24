@@ -1,0 +1,20 @@
+version: '3'
+services:
+  redis:
+    image: redis:5-alpine
+    restart: always
+
+  server:
+    build: .
+    restart: always
+    command: [
+      "--domain=samourai",
+
+      "--directoryType=redis",
+      "--directoryHostname=redis",
+      "--directoryPort=6379",
+
+      "--seed=5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d",
+    ]
+    links:
+      - redis
