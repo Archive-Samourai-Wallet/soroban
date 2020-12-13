@@ -34,6 +34,8 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 	var directory soroban.Directory
 
 	switch options.DirectoryType {
+	case "memory":
+		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeRedis, options.Directory)
 	case "redis":
 		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeRedis, options.Directory)
 	case "default":

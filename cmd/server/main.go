@@ -46,7 +46,7 @@ func init() {
 	flag.StringVar(&hostname, "hostname", "localhost", "server address (default localhost)")
 	flag.IntVar(&port, "port", 4242, "Server port (default 4242)")
 
-	flag.StringVar(&directoryHost, "directoryType", "", "Directory Type (default, redis)")
+	flag.StringVar(&directoryType, "directoryType", "", "Directory Type (default, redis, memory)")
 	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
 	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
 
