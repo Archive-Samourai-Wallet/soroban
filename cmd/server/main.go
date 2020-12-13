@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,10 +14,13 @@ import (
 	"code.samourai.io/wallet/samourai-soroban/server"
 
 	"code.samourai.io/wallet/samourai-soroban/services"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	prefix string
+	logLevel string
+	prefix   string
 
 	domain string
 	seed   string
@@ -34,6 +36,8 @@ var (
 )
 
 func init() {
+	flag.StringVar(&logLevel, "log", "info", "Log level (default info)")
+
 	// GenKey
 	flag.StringVar(&prefix, "prefix", "", "Generate Onion with prefix")
 
@@ -51,6 +55,12 @@ func init() {
 	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
 
 	flag.Parse()
+
+	level, err := log.ParseLevel(logLevel)
+	if err != nil {
+		level = log.InfoLevel
+	}
+	log.SetLevel(level)
 
 	if len(domain) == 0 {
 		domain = "samourai"

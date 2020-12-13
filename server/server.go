@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc"
 	"github.com/gorilla/rpc/json"
+	log "github.com/sirupsen/logrus"
 )
 
 type Soroban struct {
@@ -42,7 +42,7 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 		directory = internal.DefaultDirectory(options.Domain, options.Directory)
 	}
 	if directory == nil {
-		log.Fatalf("Invalid Directory")
+		log.Fatal("Invalid Directory")
 	}
 
 	var t *tor.Tor
@@ -52,7 +52,7 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 			TempDataDirBase: "/tmp",
 		})
 		if err != nil {
-			log.Printf("tor.Start error: %s", err)
+			log.WithError(err).Error("tor.Start error")
 			return nil
 		}
 		t.DeleteDataDirOnClose = true
@@ -151,7 +151,7 @@ func (p *Soroban) startServer(addr string, listener net.Listener) {
 		err = srv.ListenAndServe()
 	}
 	if err != http.ErrServerClosed {
-		log.Fatalf("Http Server error")
+		log.Fatal("Http Server error")
 	}
 }
 
@@ -161,14 +161,14 @@ func (p *Soroban) Stop() {
 	}
 	err := p.onion.Close()
 	if err != nil {
-		log.Printf("Fails to Close tor")
+		log.WithError(err).Error("Fails to Close tor")
 	}
 	if p.t == nil {
 		return
 	}
 	err = p.t.Close()
 	if err != nil {
-		log.Printf("Fails to Close tor")
+		log.WithError(err).Error("Fails to Close tor")
 	}
 }
 

@@ -8,7 +8,7 @@ SendSIGKILL=no
 RestartSec=5s
 User=soroban
 Group=soroban
-ExecStart=/usr/local/bin/soroban --hostname=localhost --port=4242
+ExecStart=/usr/local/bin/soroban --hostname=localhost --port=4242 --log=info
 Restart=always
 [Install]
 WantedBy=multi-user.target
