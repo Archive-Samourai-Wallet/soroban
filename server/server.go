@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -41,14 +43,18 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 		log.Fatalf("Invalid Directory")
 	}
 
-	t, err := tor.Start(ctx, &tor.StartConf{
-		TempDataDirBase: "/tmp",
-	})
-	if err != nil {
-		log.Printf("tor.Start error: %s", err)
-		return nil
+	var t *tor.Tor
+	if options.WithTor {
+		var err error
+		t, err = tor.Start(ctx, &tor.StartConf{
+			TempDataDirBase: "/tmp",
+		})
+		if err != nil {
+			log.Printf("tor.Start error: %s", err)
+			return nil
+		}
+		t.DeleteDataDirOnClose = true
 	}
-	t.DeleteDataDirOnClose = true
 
 	rpcServer := rpc.NewServer()
 
@@ -68,6 +74,9 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 /// Soroban interface
 
 func (p *Soroban) ID() string {
+	if p.onion == nil {
+		return ""
+	}
 	return p.onion.ID
 }
 
@@ -76,7 +85,17 @@ func (p *Soroban) Register(name string, receiver soroban.Service) error {
 	return p.rpcServer.RegisterService(receiver, name)
 }
 
-func (p *Soroban) Start(seed string) error {
+func (p *Soroban) Start(hostname string, port int) error {
+	// start without listener
+	go p.startServer(fmt.Sprintf("%s:%d", hostname, port), nil)
+
+	return nil
+}
+
+func (p *Soroban) StartWithTor(port int, seed string) error {
+	if p.t == nil {
+		return errors.New("Tor not initialized")
+	}
 	var key crypto.PrivateKey
 	if len(seed) > 0 {
 		str, err := hex.DecodeString(seed)
@@ -93,7 +112,7 @@ func (p *Soroban) Start(seed string) error {
 	var err error
 	p.onion, err = p.t.Listen(listenCtx,
 		&tor.ListenConf{
-			LocalPort:   4242,
+			LocalPort:   port,
 			RemotePorts: []int{80},
 			Key:         key,
 		})
@@ -101,32 +120,49 @@ func (p *Soroban) Start(seed string) error {
 		return err
 	}
 
-	go func() {
-		p.started <- true
-		router := mux.NewRouter()
-		router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
-		router.HandleFunc("/status", StatusHandler)
-
-		// Create http.Server with returning redis in context
-		srv := http.Server{
-			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
-			},
-			Handler: router,
-		}
-		err := srv.Serve(p.onion)
-		if err != http.ErrServerClosed {
-			log.Fatalf("Http Server error")
-		}
-	}()
+	// start with listener
+	go p.startServer("", p.onion)
 
 	return nil
 }
 
+func (p *Soroban) startServer(addr string, listener net.Listener) {
+	p.started <- true
+	router := mux.NewRouter()
+	router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
+	router.HandleFunc("/status", StatusHandler)
+
+	// Create http.Server with returning redis in context
+	srv := http.Server{
+		Addr: addr, // addr can be empty
+
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
+		},
+		Handler: router,
+	}
+
+	var err error
+	if listener != nil {
+		err = srv.Serve(listener) // use specified http listener
+	} else {
+		err = srv.ListenAndServe()
+	}
+	if err != http.ErrServerClosed {
+		log.Fatalf("Http Server error")
+	}
+}
+
 func (p *Soroban) Stop() {
+	if p.onion == nil {
+		return
+	}
 	err := p.onion.Close()
 	if err != nil {
 		log.Printf("Fails to Close tor")
+	}
+	if p.t == nil {
+		return
 	}
 	err = p.t.Close()
 	if err != nil {

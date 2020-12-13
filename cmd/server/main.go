@@ -21,6 +21,10 @@ var (
 	seed   string
 	export string
 
+	withTor  bool
+	hostname string
+	port     int
+
 	directoryType string
 	directoryHost string
 	directoryPort int
@@ -35,6 +39,10 @@ func init() {
 	flag.StringVar(&seed, "seed", "", "Onion private key seed")
 	flag.StringVar(&export, "export", "", "Export hidden service secret key from seed to file")
 
+	flag.BoolVar(&withTor, "withTor", false, "Hidden service enabled (default false)")
+	flag.StringVar(&hostname, "hostname", "localhost", "server address (default localhost)")
+	flag.IntVar(&port, "port", 4242, "Server port (default 4242)")
+
 	flag.StringVar(&directoryHost, "directoryType", "", "Directory Type (default, redis)")
 	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
 	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
@@ -43,6 +51,13 @@ func init() {
 
 	if len(domain) == 0 {
 		domain = "samourai"
+	}
+
+	if len(export) != 0 {
+		withTor = true
+	}
+	if !withTor && len(seed) != 0 {
+		log.Fatalf("Can't use seed without tor")
 	}
 
 	if len(directoryType) == 0 {
@@ -91,6 +106,7 @@ func run() error {
 				Hostname: directoryHost,
 				Port:     directoryPort,
 			},
+			WithTor: withTor,
 		},
 	)
 	if soroban == nil {
@@ -103,7 +119,11 @@ func run() error {
 	}
 
 	fmt.Println("Staring soroban...")
-	err = soroban.Start(seed)
+	if withTor {
+		err = soroban.StartWithTor(port, seed)
+	} else {
+		err = soroban.Start(hostname, port)
+	}
 	if err != nil {
 		return err
 	}
@@ -111,7 +131,11 @@ func run() error {
 
 	soroban.WaitForStart()
 
-	fmt.Printf("Sordoban started: http://%s.onion\n", soroban.ID())
+	if len(soroban.ID()) != 0 {
+		fmt.Printf("Soroban started: http://%s.onion\n", soroban.ID())
+	} else {
+		fmt.Printf("Soroban started: http://%s:%d/\n", hostname, port)
+	}
 
 	<-ctx.Done()
 

@@ -8,6 +8,7 @@ type Options struct {
 	Domain        string
 	DirectoryType string
 	Directory     ServerInfo
+	WithTor       bool
 }
 
 type ServerInfo struct {
@@ -22,7 +23,8 @@ type Service interface{}
 type Soroban interface {
 	ID() string
 	Register(name string, service Service) error
-	Start(seed string) error
+	Start(hostname string, port int) error
+	StartWithTor(port int, seed string) error
 	Stop()
 	WaitForStart()
 }
