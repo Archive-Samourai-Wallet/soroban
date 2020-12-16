@@ -1,10 +1,11 @@
 package services
 
 import (
-	"log"
 	"net/http"
 
 	"code.samourai.io/wallet/samourai-soroban/internal"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // DirectoryEntries for json-rpc request
@@ -26,15 +27,15 @@ type Directory struct{}
 func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *DirectoryEntries) error {
 	directory := internal.DirectoryFromContext(r.Context())
 	if directory == nil {
-		log.Println("Directory not found")
+		log.Error("Directory not found")
 		return nil
 	}
 
 	entries, err := directory.List(args.Name)
 	if err != nil {
-		log.Printf("Failed to list directory. %s", err)
+		log.WithError(err).Error("Failed to list directory")
 	}
-	log.Printf("List: %s (%d)", args.Name, len(entries))
+	log.Debugf("List: %s (%d)", args.Name, len(entries))
 
 	if entries == nil {
 		entries = make([]string, 0)
@@ -49,17 +50,17 @@ func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *Direct
 func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response) error {
 	directory := internal.DirectoryFromContext(r.Context())
 	if directory == nil {
-		log.Println("Directory not found")
+		log.Error("Directory not found")
 		return nil
 	}
 
-	log.Printf("Add: %s %s", args.Name, args.Entry)
+	log.Debugf("Add: %s %s", args.Name, args.Entry)
 
 	status := "success"
 	err := directory.Add(args.Name, args.Entry, directory.TimeToLive(args.Mode))
 	if err != nil {
 		status = "error"
-		log.Printf("Failed to Add entry. %s", err)
+		log.WithError(err).Error("Failed to Add entry")
 	}
 
 	*result = Response{
@@ -71,17 +72,17 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 func (t *Directory) Remove(r *http.Request, args *DirectoryEntry, result *Response) error {
 	directory := internal.DirectoryFromContext(r.Context())
 	if directory == nil {
-		log.Println("Directory not found")
+		log.Error("Directory not found")
 		return nil
 	}
 
-	log.Printf("Remove: %s %s", args.Name, args.Entry)
+	log.Debugf("Remove: %s %s", args.Name, args.Entry)
 
 	status := "success"
 	err := directory.Remove(args.Name, args.Entry)
 	if err != nil {
 		status = "error"
-		log.Printf("Failed to Remove directory. %s", err)
+		log.WithError(err).Error("Failed to Remove directory")
 	}
 
 	*result = Response{

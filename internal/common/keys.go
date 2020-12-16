@@ -1,4 +1,4 @@
-package redis
+package common
 
 import (
 	"crypto/sha256"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func parseValue(value string) (uint64, string) {
+func ParseValue(value string) (uint64, string) {
 	toks := strings.SplitN(value, "_", 2)
 	if len(toks) != 2 {
 		return 0, value
@@ -21,24 +21,24 @@ func parseValue(value string) (uint64, string) {
 	return nonce, toks[1]
 }
 
-func formatValue(counter int64, value string) string {
+func FormatValue(counter int64, value string) string {
 	// add counter prefix
 	return fmt.Sprintf("%d_%s", counter, value)
 }
 
-func hash(domain, prefix, value string) string {
+func Hash(domain, prefix, value string) string {
 	return fmt.Sprintf("%s:%x", prefix, sha256.Sum256([]byte(domain+value)))
 
 }
 
-func keyHash(domain, key string) string {
-	return hash(domain, "k", key)
+func KeyHash(domain, key string) string {
+	return Hash(domain, "k", key)
 }
 
-func countHash(domain, count string) string {
-	return hash(domain, "c", count)
+func CountHash(domain, count string) string {
+	return Hash(domain, "c", count)
 }
 
-func valueHash(domain, value string) string {
-	return hash(domain, "v", value)
+func ValueHash(domain, value string) string {
+	return Hash(domain, "v", value)
 }
