@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
@@ -18,6 +19,7 @@ var (
 
 	domain string
 	seed   string
+	export string
 
 	directoryType string
 	directoryHost string
@@ -31,6 +33,7 @@ func init() {
 	// Server
 	flag.StringVar(&domain, "domain", "", "Directory Domain")
 	flag.StringVar(&seed, "seed", "", "Onion private key seed")
+	flag.StringVar(&export, "export", "", "Export hidden service secret key from seed to file")
 
 	flag.StringVar(&directoryHost, "directoryType", "", "Directory Type (default, redis)")
 	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
@@ -54,6 +57,19 @@ func init() {
 }
 
 func main() {
+	// export seed & exit
+	if len(export) > 0 && len(seed) > 0 {
+		data, err := server.ExportHiddenServiceSecret(seed)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = ioutil.WriteFile(export, data, 0600)
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
