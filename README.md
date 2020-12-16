@@ -1,5 +1,13 @@
 # Soroban server in go
 
+## Reproducible build
+
+binary & sha256sum of soroban will be written in `bin` directory
+
+```bash
+make soroban
+```
+
 ## Docker Install
 
 Dependencies: `docker` & `docker-compose`
