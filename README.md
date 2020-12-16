@@ -8,6 +8,34 @@ binary & sha256sum of soroban will be written in `bin` directory
 make soroban
 ```
 
+## Usage
+
+```bash
+Usage of soroban:
+  -directoryHostname string
+    	Directory host
+  -directoryPort int
+    	Directory port
+  -directoryType string
+    	Directory Type (default, redis, memory)
+  -domain string
+    	Directory Domain
+  -export string
+    	Export hidden service secret key from seed to file
+  -hostname string
+    	server address (default localhost) (default "localhost")
+  -log string
+    	Log level (default info) (default "info")
+  -port int
+    	Server port (default 4242) (default 4242)
+  -prefix string
+    	Generate Onion with prefix
+  -seed string
+    	Onion private key seed
+  -withTor
+    	Hidden service enabled (default false)
+```
+
 ## Docker Install
 
 Dependencies: `docker` & `docker-compose`
