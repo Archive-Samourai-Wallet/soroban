@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/server"
@@ -137,7 +140,28 @@ func run() error {
 		fmt.Printf("Soroban started: http://%s:%d/\n", hostname, port)
 	}
 
-	<-ctx.Done()
+	WaitForExit(ctx)
 
 	return nil
+}
+
+func WaitForExit(ctx context.Context) {
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigs
+		fmt.Println("Soroban exited")
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		return
+
+	case <-ctx.Done():
+		return
+	}
 }
