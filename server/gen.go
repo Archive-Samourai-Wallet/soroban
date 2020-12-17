@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"runtime"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/sha3"
 )

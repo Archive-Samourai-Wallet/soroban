@@ -1,4 +1,10 @@
-all: docker
+all: soroban
+
+SOROBAN_BUILD_IMAGE=golang:1.15.6-alpine3.12
+
+soroban:
+	docker run -ti --rm --name soroban-go-builder -v $$(pwd):/src -w /src ${SOROBAN_BUILD_IMAGE} go build -tags netgo -ldflags="-s -w" -trimpath -o bin/soroban cmd/server/main.go
+	cd bin && sha256sum soroban | tee soroban.sum && cd ..
 
 docker:
 	docker build -t samourai-soroban .
@@ -20,4 +26,4 @@ test:
 	go test -v ./... -count=1 -run=Test
 	docker stop redis_test && docker rm redis_test
 
-.PHONY: docker docker-static compose-build up down test
+.PHONY: soroban docker docker-static compose-build up down test

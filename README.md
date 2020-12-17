@@ -1,5 +1,41 @@
 # Soroban server in go
 
+## Reproducible build
+
+binary & sha256sum of soroban will be written in `bin` directory
+
+```bash
+make soroban
+```
+
+## Usage
+
+```bash
+Usage of soroban:
+  -directoryHostname string
+    	Directory host
+  -directoryPort int
+    	Directory port
+  -directoryType string
+    	Directory Type (default, redis, memory)
+  -domain string
+    	Directory Domain
+  -export string
+    	Export hidden service secret key from seed to file
+  -hostname string
+    	server address (default localhost) (default "localhost")
+  -log string
+    	Log level (default info) (default "info")
+  -port int
+    	Server port (default 4242) (default 4242)
+  -prefix string
+    	Generate Onion with prefix
+  -seed string
+    	Onion private key seed
+  -withTor
+    	Hidden service enabled (default false)
+```
+
 ## Docker Install
 
 Dependencies: `docker` & `docker-compose`
@@ -98,13 +134,24 @@ Private Key: WAzaLtgzk5Ucd/YDkjk0PN3DiPaO0RBwVKnMOHipX3X1S7yspIRBHKweopl8wjv/EXX
 Seed:  169fc9f1925eec11b6a728044c9f4e6dd1a676a4f4e6f640c4100015644914e8
 ```
 
+### Start soroban server with specified hostname and port
+
+```bash
+go run cmd/server/main.go --hostname=0.0.0.0 --port=4242
+```
+
 ### Start soroban server with generated seed
 
 ```bash
-go run cmd/server/main.go -seed 5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d
+go run cmd/server/main.go --withTor=true -seed 5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d
+```
+
+### Export hidden service secret key
+
+```bash
+go run cmd/server/main.go -seed 5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d -export hs_ed25519_secret_key
 ```
 
 ## License
+
 AGPL 3.0
-
-

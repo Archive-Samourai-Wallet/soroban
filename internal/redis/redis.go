@@ -3,7 +3,6 @@ package redis
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -11,15 +10,9 @@ import (
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	"code.samourai.io/wallet/samourai-soroban/internal/common"
 
 	"github.com/go-redis/redis"
-)
-
-var (
-	InvalidArgsErr = errors.New("Invalid Args Error")
-	ListErr        = errors.New("List Error")
-	AddErr         = errors.New("Add Error")
-	RemoveErr      = errors.New("Remove Error")
 )
 
 type Redis struct {
@@ -54,24 +47,7 @@ func NewWithDomain(domain string, options soroban.ServerInfo) *Redis {
 
 // TimeToLive return duration from mode.
 func (r *Redis) TimeToLive(mode string) time.Duration {
-	if len(mode) == 0 {
-		mode = "default"
-	}
-
-	switch mode {
-	case "short":
-		return time.Minute
-
-	case "long":
-		return 5 * time.Minute
-
-	case "normal":
-		fallthrough
-	case "default":
-		fallthrough
-	default:
-		return 3 * time.Minute
-	}
+	return common.TimeToLive(mode)
 }
 
 // Status returs internal informations
@@ -132,13 +108,13 @@ func (r *Redis) Status() (soroban.StatusInfo, error) {
 // List return all known values for this key.
 func (r *Redis) List(key string) ([]string, error) {
 	if len(key) == 0 {
-		return nil, InvalidArgsErr
+		return nil, common.InvalidArgsErr
 	}
-	key = keyHash(r.domain, key)
+	key = common.KeyHash(r.domain, key)
 
 	values, err := r.rdb.SMembers(key).Result()
 	if err != nil {
-		return nil, ListErr
+		return nil, common.ListErr
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -146,14 +122,14 @@ func (r *Redis) List(key string) ([]string, error) {
 
 	// sort with counter prefix
 	sort.Slice(values, func(i, j int) bool {
-		n1, _ := parseValue(values[i])
-		n2, _ := parseValue(values[j])
+		n1, _ := common.ParseValue(values[i])
+		n2, _ := common.ParseValue(values[j])
 		return n1 < n2
 	})
 
 	// remove counter prefix from value
 	for i := 0; i < len(values); i++ {
-		_, value := parseValue(values[i])
+		_, value := common.ParseValue(values[i])
 		values[i] = value
 	}
 
@@ -166,17 +142,17 @@ func (r *Redis) List(key string) ([]string, error) {
 // TTL is the same for all values.
 func (r *Redis) Add(key, value string, TTL time.Duration) error {
 	if len(key) == 0 || len(value) == 0 || TTL < time.Second {
-		return InvalidArgsErr
+		return common.InvalidArgsErr
 	}
 
-	key = keyHash(r.domain, key)
-	keyCounter := countHash(r.domain, key)
-	valueHashKey := valueHash(r.domain, value)
+	key = common.KeyHash(r.domain, key)
+	keyCounter := common.CountHash(r.domain, key)
+	valueHashKey := common.ValueHash(r.domain, value)
 
 	// check if valueHashKey exists
 	exists, err := r.rdb.Exists(valueHashKey).Result()
 	if err != nil {
-		return AddErr
+		return common.AddErr
 	}
 
 	// if value not exists
@@ -184,18 +160,18 @@ func (r *Redis) Add(key, value string, TTL time.Duration) error {
 		// get next absolut counter
 		counter, err := r.rdb.Incr(keyCounter).Result()
 		if err != nil {
-			return AddErr
+			return common.AddErr
 		}
 		// set counter in valueHashKey
 		ok, err := r.rdb.Set(valueHashKey, counter, TTL).Result()
 		if err != nil || ok != "OK" {
-			return AddErr
+			return common.AddErr
 		}
 
 		// store formated value in key
-		n, err := r.rdb.SAdd(key, formatValue(counter, value)).Result()
+		n, err := r.rdb.SAdd(key, common.FormatValue(counter, value)).Result()
 		if err != nil || n != 1 {
-			return AddErr
+			return common.AddErr
 		}
 	}
 
@@ -209,15 +185,15 @@ func (r *Redis) Add(key, value string, TTL time.Duration) error {
 
 func (r *Redis) Remove(key, value string) error {
 	if len(key) == 0 || len(value) == 0 {
-		return InvalidArgsErr
+		return common.InvalidArgsErr
 	}
-	key = keyHash(r.domain, key)
-	valueHashKey := valueHash(r.domain, value)
+	key = common.KeyHash(r.domain, key)
+	valueHashKey := common.ValueHash(r.domain, value)
 
 	// check if valueHashKey exists
 	exists, err := r.rdb.Exists(valueHashKey).Result()
 	if err != nil {
-		return RemoveErr
+		return common.RemoveErr
 	}
 	// no error if not exists
 	if exists == 0 {
@@ -231,31 +207,31 @@ func (r *Redis) Remove(key, value string) error {
 	}
 	counter, err := strconv.ParseInt(counterStr, 10, 64)
 	if err != nil {
-		return RemoveErr
+		return common.RemoveErr
 	}
 
 	// delete absolut counter
 	n, err := r.rdb.Del(valueHashKey).Result()
 	if err != nil || n != 1 {
-		return RemoveErr
+		return common.RemoveErr
 	}
 
 	// remove formated value from key
-	n, err = r.rdb.SRem(key, formatValue(counter, value)).Result()
+	n, err = r.rdb.SRem(key, common.FormatValue(counter, value)).Result()
 	if err != nil || n != 1 {
-		return RemoveErr
+		return common.RemoveErr
 	}
 
 	// reduce expire counter key on last remove
 	n, err = r.rdb.SCard(key).Result()
 	if err != nil {
-		return RemoveErr
+		return common.RemoveErr
 	}
 	if n == 0 {
-		keyCounter := countHash(r.domain, key)
+		keyCounter := common.CountHash(r.domain, key)
 		_, err = r.rdb.Expire(keyCounter, 15*time.Second).Result()
 		if err != nil {
-			return RemoveErr
+			return common.RemoveErr
 		}
 	}
 

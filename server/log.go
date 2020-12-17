@@ -1,8 +1,9 @@
 package server
 
 import (
-	"log"
 	"net/http"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type LogRecord struct {
@@ -31,7 +32,7 @@ func WrapHandler(f http.Handler) http.HandlerFunc {
 		case http.StatusBadRequest:
 			fallthrough
 		case http.StatusNotFound:
-			log.Printf("Bad Request %+v\n", *r)
+			log.Error("Bad Request %+v\n", *r)
 		}
 	}
 }
