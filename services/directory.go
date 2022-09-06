@@ -1,12 +1,14 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
 
+	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/confidential"
 	"code.samourai.io/wallet/samourai-soroban/internal"
 
@@ -42,6 +44,58 @@ type DirectoryEntry struct {
 
 // Directory struct for json-rpc
 type Directory struct{}
+
+func StartP2PDirectory(ctx context.Context, bootstrap, room string) {
+	if len(bootstrap) == 0 {
+		log.Error("Invalid bootstrap")
+		return
+	}
+	if len(room) == 0 {
+		log.Error("Invalid room")
+		return
+	}
+
+	directory := internal.DirectoryFromContext(ctx)
+	if directory == nil {
+		log.Error("Directory not found")
+		return
+	}
+	p2P := internal.P2PFromContext(ctx)
+	if p2P == nil {
+		log.Error("p2p - P2P not found")
+		return
+	}
+
+	go p2P.Start(ctx, 1042, bootstrap, room)
+
+	for {
+		select {
+		case message := <-p2P.OnMessage:
+			var args DirectoryEntry
+
+			err := message.ParsePayload(&args)
+			if err != nil {
+				log.WithError(err).Error("Failed to ParsePayload")
+				continue
+			}
+
+			switch message.Context {
+			case "Directory.Add":
+				err = addToDirectory(directory, &args)
+
+			case "Directory.Remove":
+				err = removeFromDirectory(directory, &args)
+			}
+			if err != nil {
+				log.WithError(err).Error("failed to process message.")
+				continue
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
 func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *DirectoryEntriesResponse) error {
 	directory := internal.DirectoryFromContext(r.Context())
@@ -85,10 +139,24 @@ func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *Direct
 	return nil
 }
 
+func addToDirectory(directory soroban.Directory, args *DirectoryEntry) error {
+	if args == nil {
+		return errors.New("invalid args")
+	}
+	return directory.Add(args.Name, args.Entry, directory.TimeToLive(args.Mode))
+}
+
 func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response) error {
-	directory := internal.DirectoryFromContext(r.Context())
+	ctx := r.Context()
+	directory := internal.DirectoryFromContext(ctx)
 	if directory == nil {
 		log.Error("Directory not found")
+		return nil
+	}
+
+	p2p := internal.P2PFromContext(ctx)
+	if p2p == nil {
+		log.Println("p2p - P2P not found")
 		return nil
 	}
 
@@ -107,13 +175,19 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 
 	log.Debugf("Add: %s %s", args.Name, args.Entry)
 
-	err := directory.Add(args.Name, args.Entry, directory.TimeToLive(args.Mode))
+	err := addToDirectory(directory, args)
 	if err != nil {
 		log.WithError(err).Error("Failed to Add entry")
 		*result = Response{
 			Status: "error",
 		}
 		return nil
+	}
+
+	err = p2p.PublishJson(ctx, "Directory.Add", args)
+	if err != nil {
+		// non fatal error
+		log.Printf("p2p - Failed to PublishJson. %s\n", err)
 	}
 
 	*result = Response{
@@ -123,8 +197,16 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 
 }
 
+func removeFromDirectory(directory soroban.Directory, args *DirectoryEntry) error {
+	if args == nil {
+		return errors.New("invalid args")
+	}
+	return directory.Remove(args.Name, args.Entry)
+}
+
 func (t *Directory) Remove(r *http.Request, args *DirectoryEntry, result *Response) error {
-	directory := internal.DirectoryFromContext(r.Context())
+	ctx := r.Context()
+	directory := internal.DirectoryFromContext(ctx)
 	if directory == nil {
 		log.Error("Directory not found")
 		return nil
@@ -140,13 +222,25 @@ func (t *Directory) Remove(r *http.Request, args *DirectoryEntry, result *Respon
 		}
 	}
 
+	p2p := internal.P2PFromContext(ctx)
+	if p2p == nil {
+		log.Println("p2p - P2P not found")
+		return nil
+	}
+
 	log.Debugf("Remove: %s %s", args.Name, args.Entry)
 
 	status := "success"
-	err := directory.Remove(args.Name, args.Entry)
+	err := removeFromDirectory(directory, args)
 	if err != nil {
 		status = "error"
 		log.WithError(err).Error("Failed to Remove directory")
+	}
+
+	err = p2p.PublishJson(ctx, "Directory.Remove", args)
+	if err != nil {
+		// non fatal error
+		log.Printf("p2p - Failed to PublishJson. %s\n", err)
 	}
 
 	*result = Response{

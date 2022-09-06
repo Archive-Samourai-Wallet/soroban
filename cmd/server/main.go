@@ -37,6 +37,9 @@ var (
 	directoryType string
 	directoryHost string
 	directoryPort int
+
+	p2pBootstrap string
+	p2pRoom      string
 )
 
 func init() {
@@ -59,6 +62,9 @@ func init() {
 	flag.StringVar(&directoryType, "directoryType", "", "Directory Type (default, redis, memory)")
 	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
 	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
+
+	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
+	flag.StringVar(&p2pRoom, "p2pRoom", "samourai", "P2P Room")
 
 	flag.Parse()
 
@@ -130,29 +136,33 @@ func run() error {
 				Port:     directoryPort,
 			},
 			WithTor: withTor,
+			P2P: soroban.P2PInfo{
+				Bootstrap: p2pBootstrap,
+				Room:      p2pRoom,
+			},
 		},
 	)
 	if soroban == nil {
 		return errors.New("Fails to create Soroban server")
 	}
 
-	err := services.RegisterAll(soroban)
+	err := services.RegisterAll(ctx, soroban)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	fmt.Println("Staring soroban...")
 	if withTor {
-		err = soroban.StartWithTor(port, seed)
+		err = soroban.StartWithTor(ctx, port, seed)
 	} else {
-		err = soroban.Start(hostname, port)
+		err = soroban.Start(ctx, hostname, port)
 	}
 	if err != nil {
 		return err
 	}
-	defer soroban.Stop()
+	defer soroban.Stop(ctx)
 
-	soroban.WaitForStart()
+	soroban.WaitForStart(ctx)
 
 	if len(soroban.ID()) != 0 {
 		fmt.Printf("Soroban started: http://%s.onion\n", soroban.ID())

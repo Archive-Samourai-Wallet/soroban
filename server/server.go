@@ -14,6 +14,8 @@ import (
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/internal"
+	"code.samourai.io/wallet/samourai-soroban/p2p"
+	"code.samourai.io/wallet/samourai-soroban/services"
 
 	"github.com/cretz/bine/tor"
 	"github.com/gorilla/mux"
@@ -23,6 +25,7 @@ import (
 )
 
 type Soroban struct {
+	p2p       *p2p.P2P
 	directory soroban.Directory
 	t         *tor.Tor
 	onion     *tor.OnionService
@@ -65,7 +68,18 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 
 	http.Handle("/rpc", rpcServer)
 
+	// StartDirectory p2p messages service and directory
+	p2P := &p2p.P2P{OnMessage: make(chan p2p.Message)}
+
+	if len(options.P2P.Bootstrap) > 0 {
+		ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
+		ctx = context.WithValue(ctx, internal.SorobanP2PKey, p2P)
+
+		go services.StartP2PDirectory(ctx, options.P2P.Bootstrap, options.P2P.Room)
+	}
+
 	return &Soroban{
+		p2p:       p2P,
 		t:         t,
 		started:   make(chan bool),
 		rpcServer: rpcServer,
@@ -83,18 +97,18 @@ func (p *Soroban) ID() string {
 }
 
 // Register json-rpc service
-func (p *Soroban) Register(name string, receiver soroban.Service) error {
+func (p *Soroban) Register(ctx context.Context, name string, receiver soroban.Service) error {
 	return p.rpcServer.RegisterService(receiver, name)
 }
 
-func (p *Soroban) Start(hostname string, port int) error {
+func (p *Soroban) Start(ctx context.Context, hostname string, port int) error {
 	// start without listener
-	go p.startServer(fmt.Sprintf("%s:%d", hostname, port), nil)
+	go p.startServer(ctx, fmt.Sprintf("%s:%d", hostname, port), nil)
 
 	return nil
 }
 
-func (p *Soroban) StartWithTor(port int, seed string) error {
+func (p *Soroban) StartWithTor(ctx context.Context, port int, seed string) error {
 	if p.t == nil {
 		return errors.New("Tor not initialized")
 	}
@@ -107,8 +121,8 @@ func (p *Soroban) StartWithTor(port int, seed string) error {
 		key = ed25519.NewKeyFromSeed(str)
 	}
 
-	// Wait at most a few minutes to publish the service
-	listenCtx, listenCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Wait at most a few minutes to publish the tor hidden service
+	listenCtx, listenCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer listenCancel()
 
 	var err error
@@ -123,12 +137,12 @@ func (p *Soroban) StartWithTor(port int, seed string) error {
 	}
 
 	// start with listener
-	go p.startServer("", p.onion)
+	go p.startServer(ctx, "", p.onion)
 
 	return nil
 }
 
-func (p *Soroban) startServer(addr string, listener net.Listener) {
+func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Listener) {
 	p.started <- true
 	router := mux.NewRouter()
 	router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
@@ -139,7 +153,10 @@ func (p *Soroban) startServer(addr string, listener net.Listener) {
 		Addr: addr, // addr can be empty
 
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			return context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
+			ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
+			ctx = context.WithValue(ctx, internal.SorobanP2PKey, p.p2p)
+
+			return ctx
 		},
 		Handler: router,
 	}
@@ -155,7 +172,7 @@ func (p *Soroban) startServer(addr string, listener net.Listener) {
 	}
 }
 
-func (p *Soroban) Stop() {
+func (p *Soroban) Stop(ctx context.Context) {
 	if p.onion == nil {
 		return
 	}
@@ -172,6 +189,6 @@ func (p *Soroban) Stop() {
 	}
 }
 
-func (p *Soroban) WaitForStart() {
+func (p *Soroban) WaitForStart(ctx context.Context) {
 	<-p.started
 }

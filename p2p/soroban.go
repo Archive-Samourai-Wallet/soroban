@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/multiformats/go-multiaddr"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // P2P for distributed soroban
@@ -19,7 +20,12 @@ type P2P struct {
 	OnMessage chan Message
 }
 
-func (t *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string) error {
+func (p *P2P) Valid() bool {
+	return p.topic != nil
+}
+
+func (p *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string) error {
+
 	opts := []libp2p.Option{
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
 		libp2p.DefaultTransports,
@@ -45,6 +51,9 @@ func (t *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string)
 	}
 	addrs = append(addrs, addr)
 	dht, err := NewDHT(ctx, host, addrs...)
+	if err != nil {
+		return err
+	}
 
 	go Discover(ctx, host, dht, room)
 
@@ -53,20 +62,20 @@ func (t *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string)
 		return err
 	}
 
-	t.topic = topic
+	p.topic = topic
 
 	// subscribe to topic
 	subscriber, err := topic.Subscribe()
 	if err != nil {
 		return err
 	}
-	go t.subscribe(ctx, subscriber, host.ID())
+	go p.subscribe(ctx, subscriber, host.ID())
 
 	return nil
 }
 
 // start subsriber to topic
-func (t *P2P) subscribe(ctx context.Context, subscriber *pubsub.Subscription, hostID peer.ID) {
+func (p *P2P) subscribe(ctx context.Context, subscriber *pubsub.Subscription, hostID peer.ID) {
 	for {
 		msg, err := subscriber.Next(ctx)
 		if err != nil {
@@ -82,26 +91,28 @@ func (t *P2P) subscribe(ctx context.Context, subscriber *pubsub.Subscription, ho
 
 		message, err := MessageFromBytes(msg.Data)
 		if err != nil {
-			log.Printf("failed to get MessageFromBytes")
-			<-time.After(time.Second)
+			log.Debug("Skip unkown message")
 			continue
 		}
 
-		t.OnMessage <- message
+		p.OnMessage <- message
 	}
 }
 
 // Publish to topic
-func (t *P2P) Publish(ctx context.Context, msg string) error {
+func (p *P2P) Publish(ctx context.Context, msg string) error {
 	if len(msg) == 0 {
 		return errors.New("failed to publish empty message")
 	}
-	t.topic.Publish(ctx, []byte(msg))
+	if p.topic == nil {
+		return nil
+	}
+	p.topic.Publish(ctx, []byte(msg))
 	return nil
 }
 
 // Publish to topic
-func (t *P2P) PublishJson(ctx context.Context, context string, payload interface{}) error {
+func (p *P2P) PublishJson(ctx context.Context, context string, payload interface{}) error {
 	message, err := NewMessage(context, payload)
 	if err != nil {
 		return err
@@ -112,5 +123,5 @@ func (t *P2P) PublishJson(ctx context.Context, context string, payload interface
 		return err
 	}
 
-	return t.Publish(ctx, string(data))
+	return p.Publish(ctx, string(data))
 }
