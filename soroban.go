@@ -19,8 +19,10 @@ type ServerInfo struct {
 }
 
 type P2PInfo struct {
-	Bootstrap string
-	Room      string
+	Seed       string
+	Bootstrap  string
+	ListenPort int
+	Room       string
 }
 
 // Service interface

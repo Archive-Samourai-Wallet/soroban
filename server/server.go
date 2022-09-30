@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"time"
@@ -48,10 +49,24 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 		log.Fatal("Invalid Directory")
 	}
 
+	// StartDirectory p2p messages service and directory
+	p2P := &p2p.P2P{OnMessage: make(chan p2p.Message)}
+
+	if len(options.P2P.Bootstrap) > 0 {
+		ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
+		ctx = context.WithValue(ctx, internal.SorobanP2PKey, p2P)
+
+		ready := make(chan struct{})
+		go services.StartP2PDirectory(ctx, options.P2P.Seed, options.P2P.Bootstrap, options.P2P.ListenPort, options.P2P.Room, ready)
+		<-ready
+		log.Info("P2PDirectory service started")
+	}
+
 	var t *tor.Tor
 	if options.WithTor {
 		var err error
 		t, err = tor.Start(ctx, &tor.StartConf{
+			DebugWriter:     io.Discard,
 			TempDataDirBase: "/tmp",
 		})
 		if err != nil {
@@ -59,6 +74,9 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 			return nil
 		}
 		t.DeleteDataDirOnClose = true
+		// wait for network ready
+		log.Info("Waiting for soroban tor network")
+		t.EnableNetwork(ctx, true)
 	}
 
 	rpcServer := rpc.NewServer()
@@ -67,16 +85,6 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 	rpcServer.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
 
 	http.Handle("/rpc", rpcServer)
-
-	// StartDirectory p2p messages service and directory
-	p2P := &p2p.P2P{OnMessage: make(chan p2p.Message)}
-
-	if len(options.P2P.Bootstrap) > 0 {
-		ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
-		ctx = context.WithValue(ctx, internal.SorobanP2PKey, p2P)
-
-		go services.StartP2PDirectory(ctx, options.P2P.Bootstrap, options.P2P.Room)
-	}
 
 	return &Soroban{
 		p2p:       p2P,
@@ -110,7 +118,7 @@ func (p *Soroban) Start(ctx context.Context, hostname string, port int) error {
 
 func (p *Soroban) StartWithTor(ctx context.Context, port int, seed string) error {
 	if p.t == nil {
-		return errors.New("Tor not initialized")
+		return errors.New("tor not initialized")
 	}
 	var key crypto.PrivateKey
 	if len(seed) > 0 {

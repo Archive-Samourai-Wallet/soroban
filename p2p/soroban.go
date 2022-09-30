@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/network"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/net/swarm"
 	"github.com/multiformats/go-multiaddr"
 
 	log "github.com/sirupsen/logrus"
@@ -24,24 +26,42 @@ func (p *P2P) Valid() bool {
 	return p.topic != nil
 }
 
-func (p *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string) error {
+func (p *P2P) Start(ctx context.Context, p2pSeed string, listenPort int, bootstrap, room string, ready chan struct{}) error {
+	ctx = network.WithDialPeerTimeout(ctx, 3*time.Minute)
+	defer func() {
+		ready <- struct{}{}
+	}()
 
-	opts := []libp2p.Option{
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
-		libp2p.DefaultTransports,
-		libp2p.DefaultMuxers,
-		libp2p.DefaultSecurity,
-		libp2p.NATPortMap(),
+	var opts []libp2p.Option
+	if len(p2pSeed) > 0 {
+		p2pOpts, err := initTorP2P(ctx, p2pSeed, listenPort)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, p2pOpts...)
 	}
 
-	host, err := libp2p.New(opts...)
+	// fallback to clearnet
+	if len(opts) == 0 {
+		opts = append(opts, []libp2p.Option{
+			libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
+			libp2p.DefaultTransports,
+			libp2p.DefaultMuxers,
+			libp2p.DefaultSecurity,
+			libp2p.NATPortMap(),
+			libp2p.FallbackDefaults,
+		}...)
+	}
+
+	// create the swarm
+	swarm.BackoffBase = 30 * time.Second
+	host, err := libp2p.NewWithoutDefaults(opts...)
 	if err != nil {
 		return err
 	}
 
-	gossipSub, err := pubsub.NewGossipSub(ctx, host)
-	if err != nil {
-		return err
+	for _, addr := range host.Addrs() {
+		log.WithField("Addr", addr.String()).Info("P2P addr")
 	}
 
 	addrs := []multiaddr.Multiaddr{}
@@ -55,7 +75,14 @@ func (p *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string)
 		return err
 	}
 
-	go Discover(ctx, host, dht, room)
+	discoverReady := make(chan struct{})
+	go Discover(ctx, host, dht, room, discoverReady)
+	<-discoverReady
+
+	gossipSub, err := pubsub.NewGossipSub(ctx, host)
+	if err != nil {
+		return err
+	}
 
 	topic, err := gossipSub.Join(room)
 	if err != nil {
@@ -69,8 +96,8 @@ func (p *P2P) Start(ctx context.Context, listenPort int, bootstrap, room string)
 	if err != nil {
 		return err
 	}
-	go p.subscribe(ctx, subscriber, host.ID())
 
+	go p.subscribe(ctx, subscriber, host.ID())
 	return nil
 }
 

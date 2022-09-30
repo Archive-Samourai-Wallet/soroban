@@ -5,22 +5,25 @@ import (
 	"log"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/host"
-	discovery "github.com/libp2p/go-libp2p-discovery"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
+	"github.com/libp2p/go-libp2p/core/discovery"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
 )
 
-// DiscoveryServiceTag is used in our mDNS advertisements to discover other peers.
-const DiscoveryServiceTag = "soroban-pubsub"
-
-func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous string) {
+func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous string, ready chan struct{}) {
 	var routingDiscovery = routing.NewRoutingDiscovery(dht)
 
-	discovery.Advertise(ctx, routingDiscovery, rendezvous)
+	_, err := routingDiscovery.Advertise(ctx, rendezvous, discovery.TTL(15*time.Minute))
+	if err != nil {
+		log.Printf("failed to Advertise. %s", err)
+		return
+	}
 
-	ticker := time.NewTicker(time.Second * 5)
+	ready <- struct{}{}
+
+	ticker := time.NewTicker(time.Second * 15)
 	defer ticker.Stop()
 
 	for {
@@ -29,13 +32,13 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 			return
 		case <-ticker.C:
 
-			peers, err := discovery.FindPeers(ctx, routingDiscovery, rendezvous)
+			peers, err := routingDiscovery.FindPeers(ctx, rendezvous)
 			if err != nil {
 				log.Printf("failed to FindPeers. %s", err)
 				continue
 			}
 
-			for _, p := range peers {
+			for p := range peers {
 				if p.ID == h.ID() {
 					continue
 				}

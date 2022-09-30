@@ -45,7 +45,7 @@ type DirectoryEntry struct {
 // Directory struct for json-rpc
 type Directory struct{}
 
-func StartP2PDirectory(ctx context.Context, bootstrap, room string) {
+func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPort int, room string, ready chan struct{}) {
 	if len(bootstrap) == 0 {
 		log.Error("Invalid bootstrap")
 		return
@@ -66,7 +66,12 @@ func StartP2PDirectory(ctx context.Context, bootstrap, room string) {
 		return
 	}
 
-	go p2P.Start(ctx, 1042, bootstrap, room)
+	go func() {
+		err := p2P.Start(ctx, p2pSeed, listenPort, bootstrap, room, ready)
+		if err != nil {
+			log.WithError(err).Error("Failed to p2P.Start")
+		}
+	}()
 
 	for {
 		select {

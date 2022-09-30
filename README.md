@@ -11,29 +11,36 @@ make soroban
 ## Usage
 
 ```bash
-Usage of soroban:
   -directoryHostname string
-    	Directory host
+        Directory host
   -directoryPort int
-    	Directory port
+        Directory host
   -directoryType string
-    	Directory Type (default, redis, memory)
+        Directory Type (default, redis, memory)
   -domain string
-    	Directory Domain
+        Directory Domain
   -export string
-    	Export hidden service secret key from seed to file
+        Export hidden service secret key from seed to file
   -hostname string
-    	server address (default localhost) (default "localhost")
+        server address (default localhost) (default "localhost")
   -log string
-    	Log level (default info) (default "info")
+        Log level (default info) (default "info")
+  -p2pBootstrap string
+        P2P bootstrap
+  -p2pListenPort int
+        P2P Listen Port (default 1042)
+  -p2pRoom string
+        P2P Room (default "samourai")
+  -p2pSeed string
+        P2P Onion private key seed (default "auto")
   -port int
-    	Server port (default 4242) (default 4242)
+        Server port (default 4242) (default 4242)
   -prefix string
-    	Generate Onion with prefix
+        Generate Onion with prefix
   -seed string
-    	Onion private key seed
+        Onion private key seed
   -withTor
-    	Hidden service enabled (default false)
+        Hidden service enabled (default false)
 ```
 
 ## Confidential keys
@@ -167,6 +174,23 @@ go run cmd/server/main.go --withTor=true -seed 5baa80270886506c6b080de4e9558e2c3
 ```bash
 go run cmd/server/main.go -seed 5baa80270886506c6b080de4e9558e2c32c50d3a7633f87d8396f5d5767e988d -export hs_ed25519_secret_key
 ```
+
+### Peer-to-Peer network
+
+Soroban can be connect in peer-to-peer. This feature need to enable `withTor` option.
+
+Peer descovery is done using a `p2pBootstrap` onion address to perform peer discovery.
+
+```bash
+go run cmd/server/main.go --p2pBootstrap /onion3/b6jza7z6dil564arui6gev4fmzzrppng62ixjyh66xn7fl227igs56id:1042/p2p/16Uiu2HAmKrVASuXgi7NsJZuVYu2Xqx82NkGewcfEuHKZuHq7adjB --withTor=true --seed c2d0b9870b89b10a47aa7e33fd3b51dc86eaa160d764e3b16ad3924356cc84d9
+```
+
+An optional `p2pSeed` can be used (see `prefix`) to get an well known onion address (`auto` generate a new address on startup).
+
+When using several soroban on the same server, optional `p2pListenPort` can be use.
+
+An optional `p2pRoom` can be use to segregate cluster on the peer-to-peer network and to not interact with other peers an another cluster.
+
 
 ## License
 

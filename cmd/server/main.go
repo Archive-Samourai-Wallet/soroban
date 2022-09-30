@@ -38,8 +38,10 @@ var (
 	directoryHost string
 	directoryPort int
 
-	p2pBootstrap string
-	p2pRoom      string
+	p2pSeed       string
+	p2pBootstrap  string
+	p2pListenPort int
+	p2pRoom       string
 )
 
 func init() {
@@ -63,7 +65,9 @@ func init() {
 	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
 	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
 
+	flag.StringVar(&p2pSeed, "p2pSeed", "auto", "P2P Onion private key seed")
 	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
+	flag.IntVar(&p2pListenPort, "p2pListenPort", 1042, "P2P Listen Port")
 	flag.StringVar(&p2pRoom, "p2pRoom", "samourai", "P2P Room")
 
 	flag.Parse()
@@ -137,8 +141,10 @@ func run() error {
 			},
 			WithTor: withTor,
 			P2P: soroban.P2PInfo{
-				Bootstrap: p2pBootstrap,
-				Room:      p2pRoom,
+				Seed:       p2pSeed,
+				Bootstrap:  p2pBootstrap,
+				ListenPort: p2pListenPort,
+				Room:       p2pRoom,
 			},
 		},
 	)
