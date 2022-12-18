@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"log"
+	"os"
 	"time"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -15,11 +16,28 @@ import (
 func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous string, ready chan struct{}) {
 	var routingDiscovery = routing.NewRoutingDiscovery(dht)
 
-	_, err := routingDiscovery.Advertise(ctx, rendezvous, discovery.TTL(15*time.Minute))
+	err := advertize(ctx, routingDiscovery, rendezvous, 10)
 	if err != nil {
-		log.Printf("failed to Advertise. %s", err)
-		return
+		log.Printf("Advertise failed, giving up")
+		os.Exit(-1)
 	}
+
+	// advertize daemon
+	go func() {
+		for {
+			select {
+			case <-time.After(5 * time.Minute):
+				err := advertize(ctx, routingDiscovery, rendezvous, 100)
+				if err != nil {
+					log.Printf("Advertise failed, giving up")
+					os.Exit(-1)
+				}
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	ready <- struct{}{}
 
@@ -52,4 +70,23 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 			}
 		}
 	}
+}
+
+func advertize(ctx context.Context, routingDiscovery *routing.RoutingDiscovery, rendezvous string, retry int) error {
+	var err error
+	for i := 0; i < retry; i++ {
+		_, err := routingDiscovery.Advertise(ctx, rendezvous, discovery.TTL(15*time.Minute))
+		if err != nil {
+			log.Printf("failed to Advertise. %s", err)
+
+			// wait 1 minute to retry
+			<-time.After(time.Minute)
+			continue
+		}
+
+		log.Printf("Advertise Complete")
+
+		break
+	}
+	return err
 }
