@@ -1,0 +1,11 @@
+confidential:
+  - prefix: samourai.register-queue.*
+    algorithm: nacl
+    publickey: 6f39d76e3065f1fa9224b2ad261575da89f31275def4981f6de19428909683cf
+    confidential: true
+    readonly: false
+  - prefix: samourai.configuration.*
+    algorithm: ecdsa
+    publickey: 024d1d2028d6a503c5d688425eddcb9a348696d606fb6d521b8a336de760d51e8e
+    confidential: false
+    readonly: true
