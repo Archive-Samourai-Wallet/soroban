@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/p2p/onion"
 
 	"github.com/cretz/bine/tor"
@@ -60,6 +61,7 @@ func initTorP2P(ctx context.Context, p2pSeed string, listenPort int) ([]libp2p.O
 	torClient.DeleteDataDirOnClose = true
 	// wait for network ready
 	log.Info("Waiting for p2p tor network")
+	soroban.AddTorClient(ctx, torClient)
 	torClient.EnableNetwork(ctx, true)
 
 	// Create the onion service.

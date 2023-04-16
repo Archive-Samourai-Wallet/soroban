@@ -68,7 +68,7 @@ func init() {
 	flag.StringVar(&p2pSeed, "p2pSeed", "auto", "P2P Onion private key seed")
 	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
 	flag.IntVar(&p2pListenPort, "p2pListenPort", 1042, "P2P Listen Port")
-	flag.StringVar(&p2pRoom, "p2pRoom", "samourai", "P2P Room")
+	flag.StringVar(&p2pRoom, "p2pRoom", "samourai-p2p", "P2P Room")
 
 	flag.Parse()
 
@@ -126,12 +126,13 @@ func run() error {
 	}
 
 	ctx := context.Background()
+	ctx = soroban.WithTorContext(ctx)
 
 	if len(config) > 0 {
 		go confidential.ConfigWatcher(ctx, config)
 	}
 
-	soroban := server.New(ctx,
+	sorobanServer := server.New(ctx,
 		soroban.Options{
 			Domain:        domain,
 			DirectoryType: directoryType,
@@ -148,36 +149,35 @@ func run() error {
 			},
 		},
 	)
-	if soroban == nil {
+	if sorobanServer == nil {
 		return errors.New("Fails to create Soroban server")
 	}
 
-	err := services.RegisterAll(ctx, soroban)
+	err := services.RegisterAll(ctx, sorobanServer)
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
 	fmt.Println("Staring soroban...")
 	if withTor {
-		err = soroban.StartWithTor(ctx, port, seed)
+		err = sorobanServer.StartWithTor(ctx, port, seed)
 	} else {
-		err = soroban.Start(ctx, hostname, port)
+		err = sorobanServer.Start(ctx, hostname, port)
 	}
 	if err != nil {
 		return err
 	}
-	defer soroban.Stop(ctx)
+	defer sorobanServer.Stop(ctx)
 
-	soroban.WaitForStart(ctx)
+	sorobanServer.WaitForStart(ctx)
 
-	if len(soroban.ID()) != 0 {
-		fmt.Printf("Soroban started: http://%s.onion\n", soroban.ID())
+	if len(sorobanServer.ID()) != 0 {
+		fmt.Printf("Soroban started: http://%s.onion\n", sorobanServer.ID())
 	} else {
 		fmt.Printf("Soroban started: http://%s:%d/\n", hostname, port)
 	}
 
-	WaitForExit(ctx)
-
+	<-ctx.Done()
 	return nil
 }
 
@@ -189,6 +189,7 @@ func WaitForExit(ctx context.Context) {
 
 	go func() {
 		<-sigs
+		soroban.Shutdown(ctx)
 		fmt.Println("Soroban exited")
 		done <- true
 	}()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
@@ -66,13 +67,19 @@ func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPor
 		return
 	}
 
+	p2pReady := make(chan struct{})
 	go func() {
-		err := p2P.Start(ctx, p2pSeed, listenPort, bootstrap, room, ready)
+		err := p2P.Start(ctx, p2pSeed, listenPort, bootstrap, room, p2pReady)
 		if err != nil {
 			log.WithError(err).Error("Failed to p2P.Start")
 		}
+		ready <- struct{}{}
 	}()
 
+	<-p2pReady
+
+	timeoutDelay := 15 * time.Minute // first timeout is longer at startup
+	lastHeartbeatTimestamp := time.Now().UTC()
 	for {
 		select {
 		case message := <-p2P.OnMessage:
@@ -81,6 +88,14 @@ func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPor
 			err := message.ParsePayload(&args)
 			if err != nil {
 				log.WithError(err).Error("Failed to ParsePayload")
+				continue
+			}
+
+			if args.Name == "p2p.heartbeat" {
+				timeoutDelay = 3 * time.Minute // reduce timeout delay after first heartbeat received
+				lastHeartbeatTimestamp = time.Now()
+
+				log.Debug("p2p - heartbeat received")
 				continue
 			}
 
@@ -95,6 +110,25 @@ func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPor
 				log.WithError(err).Error("failed to process message.")
 				continue
 			}
+
+		case <-time.After(30 * time.Second):
+			if time.Since(lastHeartbeatTimestamp) > timeoutDelay {
+				log.Warning("No message received from too long, exiting...")
+				soroban.Shutdown(ctx)
+				os.Exit(0)
+			}
+
+			err := p2P.PublishJson(ctx, "Directory.Add", DirectoryEntry{
+				Name:  "p2p.heartbeat",
+				Entry: fmt.Sprintf("%d", time.Now().Unix()),
+				Mode:  "short",
+			})
+			if err != nil {
+				// non fatal error
+				log.Warningf("p2p - Failed to PublishJson. %s\n", err)
+				continue
+			}
+			log.Debug("p2p - heartbeat sent")
 
 		case <-ctx.Done():
 			return
@@ -132,7 +166,7 @@ func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *Direct
 		entries = entries[:args.Limit]
 	}
 
-	log.Debugf("List: %s (%d)", args.Name, len(entries))
+	log.Tracef("List: %s (%d)", args.Name, len(entries))
 
 	if entries == nil {
 		entries = make([]string, 0)

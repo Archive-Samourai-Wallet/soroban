@@ -3,7 +3,6 @@ package p2p
 import (
 	"context"
 	"log"
-	"os"
 	"time"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -16,10 +15,9 @@ import (
 func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous string, ready chan struct{}) {
 	var routingDiscovery = routing.NewRoutingDiscovery(dht)
 
-	err := advertize(ctx, routingDiscovery, rendezvous, 10)
+	err := advertize(ctx, routingDiscovery, rendezvous, 3)
 	if err != nil {
-		log.Printf("Advertise failed, giving up")
-		os.Exit(-1)
+		log.Panic("Advertise failed, giving up")
 	}
 
 	// advertize daemon
@@ -27,10 +25,9 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 		for {
 			select {
 			case <-time.After(5 * time.Minute):
-				err := advertize(ctx, routingDiscovery, rendezvous, 100)
+				err := advertize(ctx, routingDiscovery, rendezvous, 10)
 				if err != nil {
-					log.Printf("Advertise failed, giving up")
-					os.Exit(-1)
+					log.Panic("Advertise failed, giving up")
 				}
 
 			case <-ctx.Done():
@@ -41,7 +38,7 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 
 	ready <- struct{}{}
 
-	ticker := time.NewTicker(time.Second * 15)
+	ticker := time.NewTicker(45 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -56,6 +53,7 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 				continue
 			}
 
+			newPeersCount := 0
 			for p := range peers {
 				if p.ID == h.ID() {
 					continue
@@ -66,7 +64,11 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 					if err != nil {
 						continue
 					}
+					newPeersCount++
 				}
+			}
+			if newPeersCount > 0 {
+				log.Printf("Connected to new peers %d", newPeersCount)
 			}
 		}
 	}

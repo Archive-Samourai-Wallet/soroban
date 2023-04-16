@@ -74,6 +74,7 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 			return nil
 		}
 		t.DeleteDataDirOnClose = true
+		soroban.AddTorClient(ctx, t)
 		// wait for network ready
 		log.Info("Waiting for soroban tor network")
 		t.EnableNetwork(ctx, true)
@@ -176,7 +177,7 @@ func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Lis
 		err = srv.ListenAndServe()
 	}
 	if err != http.ErrServerClosed {
-		log.Fatal("Http Server error")
+		log.Warning("Http Server exited")
 	}
 }
 
