@@ -9,3 +9,13 @@ confidential:
     publickey: 024d1d2028d6a503c5d688425eddcb9a348696d606fb6d521b8a336de760d51e8e
     confidential: false
     readonly: true
+  - prefix: com.samourai.whirlpool.wo
+    algorithm: testnet3
+    publickey: mi42XN9J3eLdZae4tjQnJnVkCcNDRuAtz4
+    confidential: true
+    readonly: false
+  - prefix: com.samourai.whirlpool.ro
+    algorithm: testnet3
+    publickey: mi42XN9J3eLdZae4tjQnJnVkCcNDRuAtz4
+    confidential: false
+    readonly: true

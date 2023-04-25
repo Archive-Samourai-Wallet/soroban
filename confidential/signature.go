@@ -9,7 +9,10 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcutil"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+
+	verifier "github.com/bitonicnl/verify-signed-message/pkg"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -54,6 +57,32 @@ func VerifySignature(info ConfidentialEntry, publicKey, message, algorithm, sign
 		}
 
 		verified := verifyEcdsaSignature(publicKey, message, signature)
+		if !verified {
+			return errors.New("invalid singature")
+		}
+
+		log.Debug("Signature verified")
+		return nil
+
+	case AlgorithmTestnet3:
+		if info.PublicKey != publicKey {
+			return errors.New("publicKey not maching")
+		}
+
+		verified := verifyTestnet3Signature(publicKey, message, signature)
+		if !verified {
+			return errors.New("invalid singature")
+		}
+
+		log.Debug("Signature verified")
+		return nil
+
+	case AlgorithmMainnet:
+		if info.PublicKey != publicKey {
+			return errors.New("publicKey not maching")
+		}
+
+		verified := verifyMainnetSignature(publicKey, message, signature)
 		if !verified {
 			return errors.New("invalid singature")
 		}
@@ -112,4 +141,30 @@ func verifyEcdsaSignature(publicKey, message, signature string) bool {
 	messageHash := chainhash.DoubleHashB([]byte(message))
 
 	return sign.Verify(messageHash, pubKey)
+}
+
+func verifyTestnet3Signature(publicKey, message, signature string) bool {
+	result, err := verifier.VerifyWithChain(verifier.SignedMessage{
+		Address:   publicKey,
+		Message:   message,
+		Signature: signature,
+	}, &chaincfg.TestNet3Params)
+	if err != nil {
+		return false
+	}
+
+	return result
+}
+
+func verifyMainnetSignature(publicKey, message, signature string) bool {
+	result, err := verifier.VerifyWithChain(verifier.SignedMessage{
+		Address:   publicKey,
+		Message:   message,
+		Signature: signature,
+	}, &chaincfg.MainNetParams)
+	if err != nil {
+		return false
+	}
+
+	return result
 }

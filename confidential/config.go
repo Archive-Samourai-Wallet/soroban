@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	AlgorithmNacl  = "nacl"
-	AlgorithmEcdsa = "ecdsa"
+	AlgorithmNacl     = "nacl"
+	AlgorithmEcdsa    = "ecdsa"
+	AlgorithmTestnet3 = "testnet3"
+	AlgorithmMainnet  = "mainnet"
 )
 
 type ConfidentialEntry struct {
