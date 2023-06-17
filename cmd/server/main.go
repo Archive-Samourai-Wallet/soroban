@@ -160,7 +160,7 @@ func run() error {
 
 	fmt.Println("Staring soroban...")
 	if withTor {
-		err = sorobanServer.StartWithTor(ctx, port, seed)
+		err = sorobanServer.StartWithTor(ctx, hostname, port, seed)
 	} else {
 		err = sorobanServer.Start(ctx, hostname, port)
 	}

@@ -33,7 +33,7 @@ type Soroban interface {
 	ID() string
 	Register(ctx context.Context, name string, service Service) error
 	Start(ctx context.Context, hostname string, port int) error
-	StartWithTor(ctx context.Context, port int, seed string) error
+	StartWithTor(ctx context.Context, hostname string, port int, seed string) error
 	Stop(ctx context.Context)
 	WaitForStart(ctx context.Context)
 }

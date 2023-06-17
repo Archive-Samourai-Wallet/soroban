@@ -117,7 +117,7 @@ func (p *Soroban) Start(ctx context.Context, hostname string, port int) error {
 	return nil
 }
 
-func (p *Soroban) StartWithTor(ctx context.Context, port int, seed string) error {
+func (p *Soroban) StartWithTor(ctx context.Context, hostname string, port int, seed string) error {
 	if p.t == nil {
 		return errors.New("tor not initialized")
 	}
@@ -134,19 +134,24 @@ func (p *Soroban) StartWithTor(ctx context.Context, port int, seed string) error
 	listenCtx, listenCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer listenCancel()
 
-	var err error
+	localListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
+	if err != nil {
+		return err
+	}
+
 	p.onion, err = p.t.Listen(listenCtx,
 		&tor.ListenConf{
-			LocalPort:   port,
-			RemotePorts: []int{80},
-			Key:         key,
+			LocalListener: localListener,
+			LocalPort:     port,
+			RemotePorts:   []int{80},
+			Key:           key,
 		})
 	if err != nil {
 		return err
 	}
 
 	// start with listener
-	go p.startServer(ctx, "", p.onion)
+	go p.startServer(ctx, fmt.Sprintf("%s:%d", hostname, port), p.onion)
 
 	return nil
 }
