@@ -1,5 +1,5 @@
 # build go app
-FROM golang:1.13-alpine3.10 as gobuild
+FROM golang:1.19-alpine3.18 as gobuild
 
 RUN apk --no-cache --update add ca-certificates
 RUN apk --no-cache --update add alpine-sdk linux-headers
@@ -10,10 +10,10 @@ RUN go mod download
 
 RUN mkdir -p /stage
 COPY . /src
-RUN go build -a -tags netgo -o /stage/soroban-server cmd/server/main.go
+RUN go build -a -tags netgo -o /stage/soroban-server ./cmd/server
 
 
-# final image
+# final image. see docker/tor to build tor base image
 FROM samourai-tor
 
 COPY --from=gobuild /stage/soroban-server /usr/local/bin

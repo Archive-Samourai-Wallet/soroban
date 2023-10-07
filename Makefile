@@ -1,10 +1,9 @@
 all: soroban
 
-SOROBAN_BUILD_IMAGE=golang:1.15.6-alpine3.12
-
 soroban:
-	docker run -ti --rm --name soroban-go-builder -v $$(pwd):/src -w /src ${SOROBAN_BUILD_IMAGE} go build -tags netgo -ldflags="-s -w" -trimpath -o bin/soroban cmd/server/main.go
-	cd bin && sha256sum soroban | tee soroban.sum && cd ..
+	mkdir -p ./bin
+	go build -tags netgo -ldflags="-s -w" -trimpath -o ./bin/soroban-server ./cmd/server
+	cd bin && sha256sum soroban-server | tee soroban-server.sum && cd ..
 
 docker:
 	docker build -t samourai-soroban .
