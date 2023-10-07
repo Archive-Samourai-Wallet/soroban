@@ -36,6 +36,22 @@ Usage of soroban:
     	Hidden service enabled (default false)
 ```
 
+## Confidential keys
+
+Configuration file can be use to list confidential keys.
+Key prefix is used to find confidential key.
+First matching rule is applied.
+see [soroban.yml](soroban.yml)
+
+Confidential keys can be:
+
+- Confidential: Every body can add a key. Read must be signed by private key. 
+- Readonly: Add or delete must be signed by private key. Can be read by everybody.
+
+Supported signature scheme :
+ - nacl
+ - ecdsa
+
 ## Docker Install
 
 Dependencies: `docker` & `docker-compose`

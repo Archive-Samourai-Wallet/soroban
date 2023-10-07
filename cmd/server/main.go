@@ -6,11 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	"code.samourai.io/wallet/samourai-soroban/confidential"
 	"code.samourai.io/wallet/samourai-soroban/server"
 
 	"code.samourai.io/wallet/samourai-soroban/services"
@@ -22,6 +25,7 @@ var (
 	logLevel string
 	prefix   string
 
+	config string
 	domain string
 	seed   string
 	export string
@@ -36,12 +40,14 @@ var (
 )
 
 func init() {
+	rand.Seed(time.Now().UnixNano())
 	flag.StringVar(&logLevel, "log", "info", "Log level (default info)")
 
 	// GenKey
 	flag.StringVar(&prefix, "prefix", "", "Generate Onion with prefix")
 
 	// Server
+	flag.StringVar(&config, "config", "", "Yaml configuration file for confidential keys")
 	flag.StringVar(&domain, "domain", "", "Directory Domain")
 	flag.StringVar(&seed, "seed", "", "Onion private key seed")
 	flag.StringVar(&export, "export", "", "Export hidden service secret key from seed to file")
@@ -110,6 +116,10 @@ func run() error {
 	}
 
 	ctx := context.Background()
+
+	if len(config) > 0 {
+		go confidential.ConfigWatcher(ctx, config)
+	}
 
 	soroban := server.New(ctx,
 		soroban.Options{

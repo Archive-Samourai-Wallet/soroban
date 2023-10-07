@@ -32,7 +32,7 @@ func WrapHandler(f http.Handler) http.HandlerFunc {
 		case http.StatusBadRequest:
 			fallthrough
 		case http.StatusNotFound:
-			log.Error("Bad Request %+v\n", *r)
+			log.Errorf("Bad Request %+v\n", *r)
 		}
 	}
 }
