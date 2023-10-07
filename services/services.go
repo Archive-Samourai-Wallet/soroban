@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -16,13 +17,13 @@ type NamedService struct {
 	Service soroban.Service
 }
 
-func RegisterAll(server soroban.Soroban) error {
+func RegisterAll(ctx context.Context, server soroban.Soroban) error {
 	services := []NamedService{
 		{"directory", new(Directory)},
 	}
 
 	for _, ns := range services {
-		err := server.Register(ns.Name, ns.Service)
+		err := server.Register(ctx, ns.Name, ns.Service)
 		if err != nil {
 			return RegistrationErr
 		}
