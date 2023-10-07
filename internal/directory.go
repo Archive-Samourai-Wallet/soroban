@@ -3,14 +3,12 @@ package internal
 import (
 	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/internal/memory"
-	"code.samourai.io/wallet/samourai-soroban/internal/redis"
 )
 
 type DirectoryType string
 
 const (
 	DirectoryTypeMemory DirectoryType = "directory-memory"
-	DirectoryTypeRedis  DirectoryType = "directory-redis"
 )
 
 func DefaultDirectory(domain string, options soroban.ServerInfo) soroban.Directory {
@@ -21,8 +19,6 @@ func NewDirectory(domain string, DirectoryType DirectoryType, options soroban.Se
 	switch DirectoryType {
 	case DirectoryTypeMemory:
 		return memory.NewWithDomain(domain, memory.DefaultCacheCapacity, memory.DefaultCacheTTL)
-	case DirectoryTypeRedis:
-		return redis.NewWithDomain(domain, options)
 	default:
 		return memory.NewWithDomain(domain, memory.DefaultCacheCapacity, memory.DefaultCacheTTL)
 	}
