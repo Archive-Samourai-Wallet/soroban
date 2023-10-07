@@ -1,6 +1,7 @@
 package soroban
 
 import (
+	"context"
 	"time"
 )
 
@@ -9,11 +10,19 @@ type Options struct {
 	DirectoryType string
 	Directory     ServerInfo
 	WithTor       bool
+	P2P           P2PInfo
 }
 
 type ServerInfo struct {
 	Hostname string
 	Port     int
+}
+
+type P2PInfo struct {
+	Seed       string
+	Bootstrap  string
+	ListenPort int
+	Room       string
 }
 
 // Service interface
@@ -22,11 +31,11 @@ type Service interface{}
 // Soroban interface
 type Soroban interface {
 	ID() string
-	Register(name string, service Service) error
-	Start(hostname string, port int) error
-	StartWithTor(port int, seed string) error
-	Stop()
-	WaitForStart()
+	Register(ctx context.Context, name string, service Service) error
+	Start(ctx context.Context, hostname string, port int) error
+	StartWithTor(ctx context.Context, hostname string, port int, seed string) error
+	Stop(ctx context.Context)
+	WaitForStart(ctx context.Context)
 }
 
 type NameValue map[string]string
