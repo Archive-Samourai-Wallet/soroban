@@ -50,8 +50,11 @@ func startNatsServer(ctx context.Context, ipcSubject, natsHost string, natsPort 
 		log.WithError(err).Fatal("Failed to connect to NATS")
 	}
 
+	subject := fmt.Sprintf("%s.%s", ipcSubject, "up")
+	log.WithField("subject", subject).Info("Server register for child requests")
+
 	for i := 0; i < 16; i++ {
-		sub, err := nc.QueueSubscribe(ipcSubject, "queue."+ipcSubject, func(msg *nats.Msg) {
+		sub, err := nc.QueueSubscribe(subject, "queue."+subject, func(msg *nats.Msg) {
 			handleNatsMessage(ctx, msg, handler)
 		})
 		if err != nil {

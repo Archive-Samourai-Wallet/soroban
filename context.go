@@ -34,7 +34,7 @@ func AddTorClient(ctx context.Context, torClient *tor.Tor) {
 		defer torClients.Unlock()
 
 		torClients.clients = append(torClients.clients, torClient)
-		log.Info("Tor client added")
+		log.Debug("Tor client added")
 	}
 }
 

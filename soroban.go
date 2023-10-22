@@ -8,9 +8,11 @@ import (
 type Options struct {
 	Domain        string
 	DirectoryType string
+	Config        string
 	Directory     ServerInfo
 	WithTor       bool
 	P2P           P2PInfo
+	IPC           IPCInfo
 }
 
 type ServerInfo struct {
@@ -23,6 +25,14 @@ type P2PInfo struct {
 	Bootstrap  string
 	ListenPort int
 	Room       string
+}
+
+type IPCInfo struct {
+	Subject           string
+	ChildID           int
+	ChildProcessCount int
+	NatsHost          string
+	NAtsPort          int
 }
 
 // Service interface

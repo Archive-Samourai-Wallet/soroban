@@ -19,4 +19,6 @@ type MessageHandler func(ctx context.Context, message Message) (Message, error)
 const (
 	MessageTypeDebug   MessageType = "debug"
 	MessageTypeSoroban MessageType = "soroban"
+	MessageTypeP2P     MessageType = "p2p"
+	MessageTypeIPC     MessageType = "ipc"
 )

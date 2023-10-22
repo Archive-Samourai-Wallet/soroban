@@ -3,6 +3,7 @@ package ipc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -10,52 +11,56 @@ import (
 )
 
 type IPCOptions struct {
+	Mode     string
 	Subject  string
 	NatsHost string
 	NatsPort int
 }
 
-type IPCServer struct {
+type IPCService struct {
 	options IPCOptions
 	conn    *nats.Conn
 }
 
 // NewServer start a IPC server with embedeed NATS server
-func NewServer(ctx context.Context, options IPCOptions) *IPCServer {
-	return &IPCServer{
+func New(ctx context.Context, options IPCOptions) *IPCService {
+	return &IPCService{
 		options: options,
 	}
 }
 
-// New return a IPC Client connected to IPC server with NATS.
-func New(ctx context.Context, options IPCOptions) *IPCServer {
-	conn, err := natsConnect(ctx, options.NatsHost, options.NatsPort)
+func (p *IPCService) Mode() string {
+	return p.options.Mode
+}
+
+// Connect to IPC server with NATS.
+func (p *IPCService) Connect(ctx context.Context) {
+	if p.conn != nil {
+		log.Warning("IPC Client is already connected")
+		return
+	}
+	conn, err := natsConnect(ctx, p.options.NatsHost, p.options.NatsPort)
 	if err != nil {
 		log.WithError(err).
 			Panic("Failed to connect to NATS")
 	}
-
-	client := IPCServer{
-		options: options,
-		conn:    conn,
-	}
+	p.conn = conn
 
 	// check if responder is present
-	_, err = client.Request(Message{
+	_, err = p.Request(Message{
 		Type:    MessageTypeDebug,
 		Message: "Client Init",
 		Payload: "{}",
-	})
+	}, "up")
 	if err != nil {
 		log.WithError(err).
 			Error("Failed to reach IPC server")
 	}
 
-	return &client
-
+	log.Debug("IPC Client Connected")
 }
 
-func (p *IPCServer) Start(ctx context.Context, handler MessageHandler) {
+func (p *IPCService) Start(ctx context.Context, handler MessageHandler) {
 	if handler == nil {
 		log.Fatal("Invalid message handler")
 		return
@@ -68,12 +73,15 @@ func (p *IPCServer) Start(ctx context.Context, handler MessageHandler) {
 	close(done)
 }
 
-func (p *IPCServer) Request(request Message) (Message, error) {
+func (p *IPCService) Request(request Message, direction string) (Message, error) {
 	data, err := json.Marshal(&request)
 	if err != nil {
 		return Message{}, err
 	}
-	msg, err := p.conn.Request(p.options.Subject, data, 5*time.Second)
+
+	subject := fmt.Sprintf("%s.%s", p.options.Subject, direction)
+	log.WithField("subject", subject).Debug("IPC Requests")
+	msg, err := p.conn.Request(subject, data, 5*time.Second)
 	if err != nil {
 		return Message{}, err
 	}
@@ -85,4 +93,23 @@ func (p *IPCServer) Request(request Message) (Message, error) {
 	}
 
 	return resp, nil
+}
+
+func (p *IPCService) ListenFromServer(ctx context.Context, ipcSubject string, ipcHandler MessageHandler) {
+	subject := fmt.Sprintf("%s.%s", ipcSubject, "down")
+	log.WithField("subject", subject).Info("Child register for server requests")
+	for i := 0; i < 16; i++ {
+		sub, err := p.conn.QueueSubscribe(subject, "queue."+subject, func(msg *nats.Msg) {
+			log.Warning("Message recieved from IPC server")
+			handleNatsMessage(ctx, msg, ipcHandler)
+		})
+		if err != nil {
+			log.WithError(err).
+				Fatal("Failed to subscribe")
+			return
+		}
+		defer sub.Unsubscribe()
+	}
+
+	<-ctx.Done()
 }

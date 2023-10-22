@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -13,7 +11,6 @@ import (
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
-	"code.samourai.io/wallet/samourai-soroban/confidential"
 	"code.samourai.io/wallet/samourai-soroban/server"
 
 	"code.samourai.io/wallet/samourai-soroban/services"
@@ -42,6 +39,12 @@ var (
 	p2pBootstrap  string
 	p2pListenPort int
 	p2pRoom       string
+
+	ipcSubject           string
+	ipcChildID           int
+	ipcChildProcessCount int
+	ipcNatsHost          string
+	ipcNatsPort          int
 )
 
 func init() {
@@ -69,6 +72,12 @@ func init() {
 	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
 	flag.IntVar(&p2pListenPort, "p2pListenPort", 1042, "P2P Listen Port")
 	flag.StringVar(&p2pRoom, "p2pRoom", "samourai-p2p", "P2P Room")
+
+	flag.StringVar(&ipcSubject, "ipcSubject", "ipc.server", "IPC communication subject")
+	flag.IntVar(&ipcChildID, "ipcChildID", 0, "IPC child ID")
+	flag.IntVar(&ipcChildProcessCount, "ipcChildProcessCount", 0, "Spawn child process")
+	flag.StringVar(&ipcNatsHost, "ipcNatsHost", "localhost", "IPC NATS host")
+	flag.IntVar(&ipcNatsPort, "ipcNatsPort", 4322, "IPC nats port")
 
 	flag.Parse()
 
@@ -107,7 +116,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		err = ioutil.WriteFile(export, data, 0600)
+		err = os.WriteFile(export, data, 0600)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -128,14 +137,11 @@ func run() error {
 	ctx := context.Background()
 	ctx = soroban.WithTorContext(ctx)
 
-	if len(config) > 0 {
-		go confidential.ConfigWatcher(ctx, config)
-	}
-
-	sorobanServer := server.New(ctx,
+	ctx, sorobanServer := server.New(ctx,
 		soroban.Options{
 			Domain:        domain,
 			DirectoryType: directoryType,
+			Config:        config,
 			Directory: soroban.ServerInfo{
 				Hostname: directoryHost,
 				Port:     directoryPort,
@@ -147,10 +153,21 @@ func run() error {
 				ListenPort: p2pListenPort,
 				Room:       p2pRoom,
 			},
+			IPC: soroban.IPCInfo{
+				Subject:           ipcSubject,
+				ChildID:           ipcChildID,
+				ChildProcessCount: ipcChildProcessCount,
+				NatsHost:          ipcNatsHost,
+				NAtsPort:          ipcNatsPort,
+			},
 		},
 	)
 	if sorobanServer == nil {
-		return errors.New("Fails to create Soroban server")
+		// soroban is in child mode
+		// keep the process alive
+		log.Info("Soroban started in child mode")
+		<-ctx.Done()
+		return nil
 	}
 
 	err := services.RegisterAll(ctx, sorobanServer)
