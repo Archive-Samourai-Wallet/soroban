@@ -29,6 +29,7 @@ var (
 func init() {
 	rand.Seed(time.Now().UnixNano())
 
+	version := flag.Bool("version", false, "Print version and exit")
 	flag.StringVar(&options.LogLevel, "log", options.LogLevel, "Log level (default info)")
 	flag.StringVar(&options.LogFile, "logfile", options.LogFile, "Log file (default -)")
 
@@ -61,6 +62,9 @@ func init() {
 
 	flag.Parse()
 
+	if *version {
+		printVersionExit()
+	}
 	options.Load(options.Soroban.Config)
 
 	level, err := log.ParseLevel(options.LogLevel)

@@ -1,8 +1,13 @@
 all: soroban
 
+LC_ALL=C
+COMMIT=$(shell git rev-parse HEAD)
+VERSION=$(shell git describe --abbrev=6)
+DATE=$(shell gdate --utc -d 'today 00:00:00' +'%FT%TZ')
+
 soroban:
 	mkdir -p ./bin
-	go build -tags netgo -ldflags="-s -w" -trimpath -o ./bin/soroban-server ./cmd/server
+	go build -tags netgo -ldflags="-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Date=$(DATE)" -trimpath -o ./bin/soroban-server ./cmd/server
 	cd bin && sha256sum soroban-server | tee soroban-server.sum && cd ..
 
 docker:
