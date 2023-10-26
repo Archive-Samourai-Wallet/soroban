@@ -32,8 +32,6 @@ var (
 	port     int
 
 	directoryType string
-	directoryHost string
-	directoryPort int
 
 	p2pSeed       string
 	p2pBootstrap  string
@@ -65,8 +63,6 @@ func init() {
 	flag.IntVar(&port, "port", 4242, "Server port (default 4242)")
 
 	flag.StringVar(&directoryType, "directoryType", "", "Directory Type (default, redis, memory)")
-	flag.StringVar(&directoryHost, "directoryHostname", "", "Directory host")
-	flag.IntVar(&directoryPort, "directoryPort", 0, "Directory host")
 
 	flag.StringVar(&p2pSeed, "p2pSeed", "auto", "P2P Onion private key seed")
 	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
@@ -100,12 +96,6 @@ func init() {
 
 	if len(directoryType) == 0 {
 		directoryType = "default"
-	}
-	if len(directoryHost) == 0 {
-		directoryHost = "localhost"
-	}
-	if directoryPort == 0 {
-		directoryPort = 6379
 	}
 }
 
@@ -142,11 +132,7 @@ func run() error {
 			Domain:        domain,
 			DirectoryType: directoryType,
 			Config:        config,
-			Directory: soroban.ServerInfo{
-				Hostname: directoryHost,
-				Port:     directoryPort,
-			},
-			WithTor: withTor,
+			WithTor:       withTor,
 			P2P: soroban.P2PInfo{
 				Seed:       p2pSeed,
 				Bootstrap:  p2pBootstrap,

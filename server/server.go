@@ -46,9 +46,9 @@ func New(ctx context.Context, options soroban.Options) (context.Context, *Soroba
 
 	switch options.DirectoryType {
 	case "memory":
-		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeMemory, options.Directory)
+		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeMemory)
 	case "default":
-		directory = internal.DefaultDirectory(options.Domain, options.Directory)
+		directory = internal.DefaultDirectory(options.Domain)
 	}
 	if directory == nil {
 		log.Fatal("Invalid Directory")

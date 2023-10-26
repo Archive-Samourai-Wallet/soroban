@@ -9,15 +9,9 @@ type Options struct {
 	Domain        string
 	DirectoryType string
 	Config        string
-	Directory     ServerInfo
 	WithTor       bool
 	P2P           P2PInfo
 	IPC           IPCInfo
-}
-
-type ServerInfo struct {
-	Hostname string
-	Port     int
 }
 
 type P2PInfo struct {
