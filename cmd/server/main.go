@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,90 +20,78 @@ import (
 )
 
 var (
-	logLevel string
-	prefix   string
+	options soroban.Options = soroban.DefaultOptions
 
-	config string
-	domain string
-	seed   string
+	prefix string
 	export string
-
-	withTor  bool
-	hostname string
-	port     int
-
-	directoryType string
-
-	p2pSeed       string
-	p2pBootstrap  string
-	p2pListenPort int
-	p2pRoom       string
-
-	ipcSubject           string
-	ipcChildID           int
-	ipcChildProcessCount int
-	ipcNatsHost          string
-	ipcNatsPort          int
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
-	flag.StringVar(&logLevel, "log", "info", "Log level (default info)")
+
+	flag.StringVar(&options.LogLevel, "log", options.LogLevel, "Log level (default info)")
+	flag.StringVar(&options.LogFile, "logfile", options.LogFile, "Log file (default -)")
 
 	// GenKey
-	flag.StringVar(&prefix, "prefix", "", "Generate Onion with prefix")
-
-	// Server
-	flag.StringVar(&config, "config", "", "Yaml configuration file for confidential keys")
-	flag.StringVar(&domain, "domain", "", "Directory Domain")
-	flag.StringVar(&seed, "seed", "", "Onion private key seed")
+	flag.StringVar(&prefix, "prefix", prefix, "Generate Onion with prefix")
 	flag.StringVar(&export, "export", "", "Export hidden service secret key from seed to file")
 
-	flag.BoolVar(&withTor, "withTor", false, "Hidden service enabled (default false)")
-	flag.StringVar(&hostname, "hostname", "localhost", "server address (default localhost)")
-	flag.IntVar(&port, "port", 4242, "Server port (default 4242)")
+	// Server
+	flag.StringVar(&options.Soroban.Config, "config", options.Soroban.Config, "Yaml configuration file for soroban")
+	flag.StringVar(&options.Soroban.Confidential, "confidential", options.Soroban.Confidential, "Yaml configuration file for confidential keys")
+	flag.StringVar(&options.Soroban.Domain, "domain", options.Soroban.Domain, "Directory Domain")
+	flag.StringVar(&options.Soroban.Seed, "seed", options.Soroban.Seed, "Onion private key seed")
 
-	flag.StringVar(&directoryType, "directoryType", "", "Directory Type (default, redis, memory)")
+	flag.BoolVar(&options.Soroban.WithTor, "withTor", options.Soroban.WithTor, "Hidden service enabled (default false)")
+	flag.StringVar(&options.Soroban.Hostname, "hostname", options.Soroban.Hostname, "server address (default localhost)")
+	flag.IntVar(&options.Soroban.Port, "port", options.Soroban.Port, "Server port (default 4242)")
 
-	flag.StringVar(&p2pSeed, "p2pSeed", "auto", "P2P Onion private key seed")
-	flag.StringVar(&p2pBootstrap, "p2pBootstrap", "", "P2P bootstrap")
-	flag.IntVar(&p2pListenPort, "p2pListenPort", 1042, "P2P Listen Port")
-	flag.StringVar(&p2pRoom, "p2pRoom", "samourai-p2p", "P2P Room")
+	flag.StringVar(&options.Soroban.DirectoryType, "directoryType", options.Soroban.DirectoryType, "Directory Type (default, redis, memory)")
 
-	flag.StringVar(&ipcSubject, "ipcSubject", "ipc.server", "IPC communication subject")
-	flag.IntVar(&ipcChildID, "ipcChildID", 0, "IPC child ID")
-	flag.IntVar(&ipcChildProcessCount, "ipcChildProcessCount", 0, "Spawn child process")
-	flag.StringVar(&ipcNatsHost, "ipcNatsHost", "localhost", "IPC NATS host")
-	flag.IntVar(&ipcNatsPort, "ipcNatsPort", 4322, "IPC nats port")
+	flag.StringVar(&options.P2P.Seed, "p2pSeed", options.P2P.Seed, "P2P Onion private key seed")
+	flag.StringVar(&options.P2P.Bootstrap, "p2pBootstrap", options.P2P.Bootstrap, "P2P bootstrap")
+	flag.IntVar(&options.P2P.ListenPort, "p2pListenPort", options.P2P.ListenPort, "P2P Listen Port")
+	flag.StringVar(&options.P2P.Room, "p2pRoom", options.P2P.Room, "P2P Room")
+
+	flag.StringVar(&options.IPC.Subject, "ipcSubject", options.IPC.Subject, "IPC communication subject")
+	flag.IntVar(&options.IPC.ChildID, "ipcChildID", options.IPC.ChildID, "IPC child ID")
+	flag.IntVar(&options.IPC.ChildProcessCount, "ipcChildProcessCount", options.IPC.ChildProcessCount, "Spawn child process")
+	flag.StringVar(&options.IPC.NatsHost, "ipcNatsHost", options.IPC.NatsHost, "IPC NATS host")
+	flag.IntVar(&options.IPC.NatsPort, "ipcNatsPort", options.IPC.NatsPort, "IPC nats port")
 
 	flag.Parse()
 
-	level, err := log.ParseLevel(logLevel)
+	options.Load(options.Soroban.Config)
+
+	level, err := log.ParseLevel(options.LogLevel)
 	if err != nil {
 		level = log.InfoLevel
 	}
 	log.SetLevel(level)
 
-	if len(domain) == 0 {
-		domain = "samourai"
+	logOutput := os.Stderr
+	if len(options.LogFile) > 0 && options.LogFile != "-" {
+		log.SetFormatter(&log.JSONFormatter{})
+		var err error
+		if logOutput, err = os.OpenFile(options.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err != nil {
+			log.WithField("logOutput", logOutput).Fatal("Invalid ConfigFile")
+			return
+		}
 	}
+	log.SetOutput(logOutput)
 
 	if len(export) != 0 {
-		withTor = true
+		options.Soroban.WithTor = true
 	}
-	if !withTor && len(seed) != 0 {
+	if !options.Soroban.WithTor && len(options.Soroban.Seed) != 0 {
 		log.Fatalf("Can't use seed without tor")
-	}
-
-	if len(directoryType) == 0 {
-		directoryType = "default"
 	}
 }
 
 func main() {
 	// export seed & exit
-	if len(export) > 0 && len(seed) > 0 {
-		data, err := server.ExportHiddenServiceSecret(seed)
+	if len(export) > 0 && len(options.Soroban.Seed) > 0 {
+		data, err := server.ExportHiddenServiceSecret(options.Soroban.Seed)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -123,31 +112,12 @@ func run() error {
 		server.GenKey(prefix)
 		return nil
 	}
+	prefix = strings.Trim(prefix, " ")
 
 	ctx := context.Background()
 	ctx = soroban.WithTorContext(ctx)
 
-	ctx, sorobanServer := server.New(ctx,
-		soroban.Options{
-			Domain:        domain,
-			DirectoryType: directoryType,
-			Config:        config,
-			WithTor:       withTor,
-			P2P: soroban.P2PInfo{
-				Seed:       p2pSeed,
-				Bootstrap:  p2pBootstrap,
-				ListenPort: p2pListenPort,
-				Room:       p2pRoom,
-			},
-			IPC: soroban.IPCInfo{
-				Subject:           ipcSubject,
-				ChildID:           ipcChildID,
-				ChildProcessCount: ipcChildProcessCount,
-				NatsHost:          ipcNatsHost,
-				NAtsPort:          ipcNatsPort,
-			},
-		},
-	)
+	ctx, sorobanServer := server.New(ctx, options)
 	if sorobanServer == nil {
 		// soroban is in child mode
 		// keep the process alive
@@ -161,11 +131,11 @@ func run() error {
 		log.Fatalf("%v", err)
 	}
 
-	fmt.Println("Staring soroban...")
-	if withTor {
-		err = sorobanServer.StartWithTor(ctx, hostname, port, seed)
+	log.Info("Staring soroban...")
+	if options.Soroban.WithTor {
+		err = sorobanServer.StartWithTor(ctx, options.Soroban.Hostname, options.Soroban.Port, options.Soroban.Seed)
 	} else {
-		err = sorobanServer.Start(ctx, hostname, port)
+		err = sorobanServer.Start(ctx, options.Soroban.Hostname, options.Soroban.Port)
 	}
 	if err != nil {
 		return err
@@ -175,9 +145,9 @@ func run() error {
 	sorobanServer.WaitForStart(ctx)
 
 	if len(sorobanServer.ID()) != 0 {
-		fmt.Printf("Soroban started: http://%s.onion\n", sorobanServer.ID())
+		log.Infof("Soroban started: http://%s.onion", sorobanServer.ID())
 	} else {
-		fmt.Printf("Soroban started: http://%s:%d/\n", hostname, port)
+		log.Infof("Soroban started: http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port)
 	}
 
 	<-ctx.Done()

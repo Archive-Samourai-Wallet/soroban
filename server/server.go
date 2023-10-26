@@ -40,15 +40,15 @@ type Soroban struct {
 func New(ctx context.Context, options soroban.Options) (context.Context, *Soroban) {
 	var directory soroban.Directory
 
-	if len(options.Config) > 0 {
-		go confidential.ConfigWatcher(ctx, options.Config)
+	if len(options.Soroban.Confidential) > 0 {
+		go confidential.ConfigWatcher(ctx, options.Soroban.Confidential)
 	}
 
-	switch options.DirectoryType {
+	switch options.Soroban.DirectoryType {
 	case "memory":
-		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeMemory)
+		directory = internal.NewDirectory(options.Soroban.Domain, internal.DirectoryTypeMemory)
 	case "default":
-		directory = internal.DefaultDirectory(options.Domain)
+		directory = internal.DefaultDirectory(options.Soroban.Domain)
 	}
 	if directory == nil {
 		log.Fatal("Invalid Directory")
@@ -69,7 +69,7 @@ func New(ctx context.Context, options soroban.Options) (context.Context, *Soroba
 		Mode:     ipcMode,
 		Subject:  options.IPC.Subject,
 		NatsHost: options.IPC.NatsHost,
-		NatsPort: options.IPC.NAtsPort,
+		NatsPort: options.IPC.NatsPort,
 	}))
 
 	log.WithFields(log.Fields{
@@ -177,7 +177,7 @@ func New(ctx context.Context, options soroban.Options) (context.Context, *Soroba
 
 	// start soroban service
 	var t *tor.Tor
-	if options.WithTor {
+	if options.Soroban.WithTor {
 		var err error
 		t, err = tor.Start(ctx, &tor.StartConf{
 			DebugWriter:     io.Discard,

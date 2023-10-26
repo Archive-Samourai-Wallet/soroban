@@ -1,21 +1,18 @@
-confidential:
-  - prefix: samourai.register-queue.*
-    algorithm: nacl
-    publickey: 6f39d76e3065f1fa9224b2ad261575da89f31275def4981f6de19428909683cf
-    confidential: true
-    readonly: false
-  - prefix: samourai.configuration.*
-    algorithm: ecdsa
-    publickey: 024d1d2028d6a503c5d688425eddcb9a348696d606fb6d521b8a336de760d51e8e
-    confidential: false
-    readonly: true
-  - prefix: com.samourai.whirlpool.wo
-    algorithm: testnet3
-    publickey: mi42XN9J3eLdZae4tjQnJnVkCcNDRuAtz4
-    confidential: true
-    readonly: false
-  - prefix: com.samourai.whirlpool.ro
-    algorithm: testnet3
-    publickey: mi42XN9J3eLdZae4tjQnJnVkCcNDRuAtz4
-    confidential: false
-    readonly: true
+loglevel: info
+logfile: /var/log/soroban.log
+soroban:
+  config: /etc/soroban/soroban.yml
+  confidential: /etc/soroban/confidential.yml
+  domain: samourai
+  withtor: true
+  seed: b326ba05f26fb40978a378b1fc6f28d1318ba9b5fdfd0f4bfc6594de76706e81
+  hostname: localhost
+  port: 4242
+p2p:
+  room: prod-samourai-whilrpool
+  listenport: 1042
+  bootstrap: "/onion3/b6jza7z6dil564arui6gev4fmzzrppng62ixjyh66xn7fl227igs56id:1040/p2p/16Uiu2HAmKrVASuXgi7NsJZuVYu2Xqx82NkGewcfEuHKZuHq7adjB"
+  seed: auto
+ipc:
+  childprocesscount: 3
+  natsport: 4222

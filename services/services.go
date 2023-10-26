@@ -3,13 +3,13 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
-	RegistrationErr = errors.New("Service registration failed")
+	ErrRegistration = errors.New("service registration failed")
 )
 
 type NamedService struct {
@@ -25,9 +25,9 @@ func RegisterAll(ctx context.Context, server soroban.Soroban) error {
 	for _, ns := range services {
 		err := server.Register(ctx, ns.Name, ns.Service)
 		if err != nil {
-			return RegistrationErr
+			return ErrRegistration
 		}
-		fmt.Printf("%s registered\n", ns.Name)
+		log.Debugf("%s registered\n", ns.Name)
 	}
 
 	return nil

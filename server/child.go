@@ -30,10 +30,10 @@ func startChildSoroban(ctx context.Context, options soroban.Options, childID int
 
 	go ipc.StartProcessDaemon(ctx, fmt.Sprintf("soroban-child-%d", childID),
 		executablePath,
-		"--config", options.Config,
+		// "--config", optionsc.Soroban.Config,
 		"--ipcChildID", strconv.Itoa(childID),
 		"--ipcNatsHost", options.IPC.NatsHost,
-		"--ipcNatsPort", strconv.Itoa(options.IPC.NAtsPort),
+		"--ipcNatsPort", strconv.Itoa(options.IPC.NatsPort),
 		"--p2pBootstrap", options.P2P.Bootstrap,
 		"--p2pRoom", options.P2P.Room,
 		"--p2pListenPort", strconv.Itoa(options.P2P.ListenPort+childID),
