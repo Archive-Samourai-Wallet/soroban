@@ -260,7 +260,7 @@ func (p *DirectoryEntries) VerifySignature(info confidential.ConfidentialEntry) 
 		return errors.New("timestamp not in time range")
 	}
 
-	message := fmt.Sprintf("%v.%v", p.Name, p.Timestamp/1000000)
+	message := fmt.Sprintf("%v.%v", p.Name, p.Timestamp)
 	return confidential.VerifySignature(info, p.PublicKey, message, p.Algorithm, p.Signature)
 }
 
