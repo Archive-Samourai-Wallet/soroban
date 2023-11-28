@@ -24,6 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc"
 	"github.com/gorilla/rpc/json"
+	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -273,6 +274,13 @@ func (p *Soroban) StartWithTor(ctx context.Context, hostname string, port int, s
 
 func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Listener) {
 	p.started <- true
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Use your allowed origin here
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
 	router := mux.NewRouter()
 	router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
 	router.HandleFunc("/status", StatusHandler)
@@ -292,7 +300,7 @@ func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Lis
 
 			return ctx
 		},
-		Handler: router,
+		Handler: c.Handler(router),
 	}
 
 	var err error

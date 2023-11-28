@@ -20,6 +20,7 @@ require (
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/nats-io/nats-server/v2 v2.9.21
 	github.com/nats-io/nats.go v1.30.2
+	github.com/rs/cors v1.10.1
 	github.com/shaj13/libcache v1.0.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/whyrusleeping/mafmt v1.2.8
