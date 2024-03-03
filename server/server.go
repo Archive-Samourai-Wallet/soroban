@@ -14,7 +14,9 @@ import (
 	"crypto/ed25519"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
+	"code.samourai.io/wallet/samourai-soroban/confidential"
 	"code.samourai.io/wallet/samourai-soroban/internal"
+	"code.samourai.io/wallet/samourai-soroban/ipc"
 	"code.samourai.io/wallet/samourai-soroban/p2p"
 	"code.samourai.io/wallet/samourai-soroban/services"
 
@@ -22,11 +24,13 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc"
 	"github.com/gorilla/rpc/json"
+	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 )
 
 type Soroban struct {
 	p2p       *p2p.P2P
+	ipc       *ipc.IPCService
 	directory soroban.Directory
 	t         *tor.Tor
 	onion     *tor.OnionService
@@ -34,25 +38,132 @@ type Soroban struct {
 	rpcServer *rpc.Server
 }
 
-func New(ctx context.Context, options soroban.Options) *Soroban {
+func New(ctx context.Context, options soroban.Options) (context.Context, *Soroban) {
 	var directory soroban.Directory
 
-	switch options.DirectoryType {
+	if len(options.Soroban.Confidential) > 0 {
+		go confidential.ConfigWatcher(ctx, options.Soroban.Confidential)
+	}
+
+	switch options.Soroban.DirectoryType {
 	case "memory":
-		directory = internal.NewDirectory(options.Domain, internal.DirectoryTypeMemory, options.Directory)
+		directory = internal.NewDirectory(options.Soroban.Domain, internal.DirectoryTypeMemory)
 	case "default":
-		directory = internal.DefaultDirectory(options.Domain, options.Directory)
+		directory = internal.DefaultDirectory(options.Soroban.Domain)
 	}
 	if directory == nil {
 		log.Fatal("Invalid Directory")
 	}
 
-	// StartDirectory p2p messages service and directory
-	p2P := &p2p.P2P{OnMessage: make(chan p2p.Message)}
+	startIPCService := options.IPC.ChildProcessCount > 0 && options.IPC.ChildID == 0
+	startMainSoroban := startIPCService || (options.IPC.ChildProcessCount == 0 && options.IPC.ChildID == 0)
+	startP2PDirectory := len(options.P2P.Bootstrap) > 0 && (options.IPC.ChildProcessCount == 0 || options.IPC.ChildID > 0)
 
-	if len(options.P2P.Bootstrap) > 0 {
-		ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
-		ctx = context.WithValue(ctx, internal.SorobanP2PKey, p2P)
+	ipcMode := "peer"
+	if !startMainSoroban {
+		ipcMode = "child"
+	}
+
+	ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
+	ctx = context.WithValue(ctx, internal.SorobanP2PKey, &p2p.P2P{OnMessage: make(chan p2p.Message)})
+	ctx = context.WithValue(ctx, internal.SorobanIPCKey, ipc.New(ctx, ipc.IPCOptions{
+		Mode:     ipcMode,
+		Subject:  options.IPC.Subject,
+		NatsHost: options.IPC.NatsHost,
+		NatsPort: options.IPC.NatsPort,
+	}))
+
+	log.WithFields(log.Fields{
+		"ipcMode":               ipcMode,
+		"startMainSoroban":      startMainSoroban,
+		"startIPCService":       startIPCService,
+		"startP2PDirectory":     startP2PDirectory,
+		"IPC.ChildID":           options.IPC.ChildID,
+		"IPC.ChildProcessCount": options.IPC.ChildProcessCount,
+	}).Debug("IPC info")
+
+	if startIPCService {
+		// start IPC directory
+		log.Info("Start IPC Server")
+		ready := make(chan struct{})
+
+		go services.StartIPCService(ctx, ready)
+		<-ready
+		log.Info("Starting child process")
+
+		// spawn p2p child process
+		for i := 0; i < options.IPC.ChildProcessCount; i++ {
+			startChildSoroban(ctx, options, i+1)
+			<-time.After(5 * time.Second)
+		}
+	}
+
+	// Both IPC Server & client need to connect to IPC server (bi-directionnal communcation)
+
+	if client := internal.IPCFromContext(ctx); client != nil {
+		client.Connect(ctx)
+	}
+
+	if startP2PDirectory {
+		log.Warning("Start P2P Directory")
+
+		if options.IPC.ChildID > 0 {
+			log.Warning("IPC Client ListenFromServer requests")
+			if client := internal.IPCFromContext(ctx); client != nil {
+				go client.ListenFromServer(ctx, options.IPC.Subject, func(ctx context.Context, message ipc.Message) (ipc.Message, error) {
+					switch message.Type {
+					case ipc.MessageTypeIPC:
+						log.Debug("IPC Message recieved from server")
+
+						var p2pMessage p2p.Message
+
+						err := unmarshalString(message.Payload, &p2pMessage)
+						if err != nil {
+							log.WithError(err).Error("Failed to Unmarshal IPC message")
+							return ipc.Message{
+								Type:    message.Type,
+								Message: "error",
+							}, nil
+						}
+
+						// forward message to p2p network
+						p2P := internal.P2PFromContext(ctx)
+						var args services.DirectoryEntry
+						err = unmarshalData(p2pMessage.Payload, &args)
+						if err != nil {
+							log.WithError(err).Error("Failed to Unmarshal IPC message")
+							return ipc.Message{
+								Type:    message.Type,
+								Message: "error",
+							}, nil
+						}
+
+						log.WithField("p2pMessage", fmt.Sprintf("%s: %s", p2pMessage.Context, string(p2pMessage.Payload))).Debug("Publish Message to p2p")
+
+						err = p2P.PublishJson(ctx, p2pMessage.Context, &args)
+						if err != nil {
+							log.WithError(err).Error("Failed to Publish P2P message")
+							return ipc.Message{
+								Type:    message.Type,
+								Message: "error",
+							}, nil
+						}
+						return ipc.Message{
+							Type:    message.Type,
+							Message: "success",
+						}, nil
+					default:
+						return ipc.Message{
+							Type:    message.Type,
+							Message: "unknown",
+						}, nil
+					}
+
+				})
+			} else {
+				log.Fatal("IPC Client not found in context")
+			}
+		}
 
 		ready := make(chan struct{})
 		go services.StartP2PDirectory(ctx, options.P2P.Seed, options.P2P.Bootstrap, options.P2P.ListenPort, options.P2P.Room, ready)
@@ -60,8 +171,14 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 		log.Info("P2PDirectory service started")
 	}
 
+	if !startMainSoroban {
+		// soroban is in child mode
+		return ctx, nil
+	}
+
+	// start soroban service
 	var t *tor.Tor
-	if options.WithTor {
+	if options.Soroban.WithTor {
 		var err error
 		t, err = tor.Start(ctx, &tor.StartConf{
 			DebugWriter:     io.Discard,
@@ -69,7 +186,7 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 		})
 		if err != nil {
 			log.WithError(err).Error("tor.Start error")
-			return nil
+			return ctx, nil
 		}
 		t.DeleteDataDirOnClose = true
 		soroban.AddTorClient(ctx, t)
@@ -85,8 +202,9 @@ func New(ctx context.Context, options soroban.Options) *Soroban {
 
 	http.Handle("/rpc", rpcServer)
 
-	return &Soroban{
-		p2p:       p2P,
+	return ctx, &Soroban{
+		p2p:       internal.P2PFromContext(ctx),
+		ipc:       internal.IPCFromContext(ctx),
 		t:         t,
 		started:   make(chan bool),
 		rpcServer: rpcServer,
@@ -156,6 +274,13 @@ func (p *Soroban) StartWithTor(ctx context.Context, hostname string, port int, s
 
 func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Listener) {
 	p.started <- true
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"}, // Use your allowed origin here
+		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type", "Authorization"},
+		AllowCredentials: true,
+	})
+
 	router := mux.NewRouter()
 	router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
 	router.HandleFunc("/status", StatusHandler)
@@ -166,11 +291,16 @@ func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Lis
 
 		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 			ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
-			ctx = context.WithValue(ctx, internal.SorobanP2PKey, p.p2p)
+			if p.p2p != nil {
+				ctx = context.WithValue(ctx, internal.SorobanP2PKey, p.p2p)
+			}
+			if p.ipc != nil {
+				ctx = context.WithValue(ctx, internal.SorobanIPCKey, p.ipc)
+			}
 
 			return ctx
 		},
-		Handler: router,
+		Handler: c.Handler(router),
 	}
 
 	var err error

@@ -11,11 +11,11 @@ const (
 	DirectoryTypeMemory DirectoryType = "directory-memory"
 )
 
-func DefaultDirectory(domain string, options soroban.ServerInfo) soroban.Directory {
-	return NewDirectory(domain, DirectoryTypeMemory, options)
+func DefaultDirectory(domain string) soroban.Directory {
+	return NewDirectory(domain, DirectoryTypeMemory)
 }
 
-func NewDirectory(domain string, DirectoryType DirectoryType, options soroban.ServerInfo) soroban.Directory {
+func NewDirectory(domain string, DirectoryType DirectoryType) soroban.Directory {
 	switch DirectoryType {
 	case DirectoryTypeMemory:
 		return memory.NewWithDomain(domain, memory.DefaultCacheCapacity, memory.DefaultCacheTTL)
