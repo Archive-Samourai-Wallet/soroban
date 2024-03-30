@@ -48,6 +48,7 @@ func init() {
 	flag.IntVar(&options.Soroban.Port, "port", options.Soroban.Port, "Server port (default 4242)")
 
 	flag.StringVar(&options.Soroban.DirectoryType, "directoryType", options.Soroban.DirectoryType, "Directory Type (default, redis, memory)")
+	flag.StringVar(&options.Soroban.Announce, "announce", options.Soroban.Announce, "Soroban key for node annouce")
 
 	flag.StringVar(&options.P2P.Seed, "p2pSeed", options.P2P.Seed, "P2P Onion private key seed")
 	flag.StringVar(&options.P2P.Bootstrap, "p2pBootstrap", options.P2P.Bootstrap, "P2P bootstrap")
@@ -152,6 +153,13 @@ func run() error {
 		log.Infof("Soroban started: http://%s.onion", sorobanServer.ID())
 	} else {
 		log.Infof("Soroban started: http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port)
+	}
+
+	if len(options.Soroban.Announce) > 0 {
+		go services.StartAnnounce(ctx, options.Soroban.Announce,
+			fmt.Sprintf("http://%s.onion", sorobanServer.ID()),
+			// fmt.Sprintf("http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port),
+		)
 	}
 
 	<-ctx.Done()

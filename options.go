@@ -19,6 +19,7 @@ var (
 			Seed:          "",
 			Hostname:      "localhost",
 			Port:          4242,
+			Announce:      "soroban.announce.nodes",
 		},
 		P2P: P2PInfo{
 			Seed:       "auto",
@@ -83,6 +84,7 @@ type SorobanInfo struct {
 	Seed          string
 	Hostname      string
 	Port          int
+	Announce      string
 }
 
 func (p *SorobanInfo) Merge(s SorobanInfo) {
@@ -109,6 +111,9 @@ func (p *SorobanInfo) Merge(s SorobanInfo) {
 	}
 	if s.Port > 0 {
 		p.Port = s.Port
+	}
+	if len(s.Announce) > 0 {
+		p.Announce = s.Announce
 	}
 }
 
