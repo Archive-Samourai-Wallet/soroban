@@ -1,17 +1,18 @@
 package services
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
-	"os"
 	"time"
 
 	soroban "code.samourai.io/wallet/samourai-soroban"
 	"code.samourai.io/wallet/samourai-soroban/confidential"
 	"code.samourai.io/wallet/samourai-soroban/internal"
+	"code.samourai.io/wallet/samourai-soroban/ipc"
+	"code.samourai.io/wallet/samourai-soroban/p2p"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -45,96 +46,6 @@ type DirectoryEntry struct {
 
 // Directory struct for json-rpc
 type Directory struct{}
-
-func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPort int, room string, ready chan struct{}) {
-	if len(bootstrap) == 0 {
-		log.Error("Invalid bootstrap")
-		return
-	}
-	if len(room) == 0 {
-		log.Error("Invalid room")
-		return
-	}
-
-	directory := internal.DirectoryFromContext(ctx)
-	if directory == nil {
-		log.Error("Directory not found")
-		return
-	}
-	p2P := internal.P2PFromContext(ctx)
-	if p2P == nil {
-		log.Error("p2p - P2P not found")
-		return
-	}
-
-	p2pReady := make(chan struct{})
-	go func() {
-		err := p2P.Start(ctx, p2pSeed, listenPort, bootstrap, room, p2pReady)
-		if err != nil {
-			log.WithError(err).Error("Failed to p2P.Start")
-		}
-		ready <- struct{}{}
-	}()
-
-	<-p2pReady
-
-	timeoutDelay := 15 * time.Minute // first timeout is longer at startup
-	lastHeartbeatTimestamp := time.Now().UTC()
-	for {
-		select {
-		case message := <-p2P.OnMessage:
-			var args DirectoryEntry
-
-			err := message.ParsePayload(&args)
-			if err != nil {
-				log.WithError(err).Error("Failed to ParsePayload")
-				continue
-			}
-
-			if args.Name == "p2p.heartbeat" {
-				timeoutDelay = 3 * time.Minute // reduce timeout delay after first heartbeat received
-				lastHeartbeatTimestamp = time.Now()
-
-				log.Debug("p2p - heartbeat received")
-				continue
-			}
-
-			switch message.Context {
-			case "Directory.Add":
-				err = addToDirectory(directory, &args)
-
-			case "Directory.Remove":
-				err = removeFromDirectory(directory, &args)
-			}
-			if err != nil {
-				log.WithError(err).Error("failed to process message.")
-				continue
-			}
-
-		case <-time.After(30 * time.Second):
-			if time.Since(lastHeartbeatTimestamp) > timeoutDelay {
-				log.Warning("No message received from too long, exiting...")
-				soroban.Shutdown(ctx)
-				os.Exit(0)
-			}
-
-			err := p2P.PublishJson(ctx, "Directory.Add", DirectoryEntry{
-				Name:  "p2p.heartbeat",
-				Entry: fmt.Sprintf("%d", time.Now().Unix()),
-				Mode:  "short",
-			})
-			if err != nil {
-				// non fatal error
-				log.Warningf("p2p - Failed to PublishJson. %s\n", err)
-				continue
-			}
-			log.Debug("p2p - heartbeat sent")
-
-		case <-ctx.Done():
-			return
-		}
-	}
-}
 
 func (t *Directory) List(r *http.Request, args *DirectoryEntries, result *DirectoryEntriesResponse) error {
 	directory := internal.DirectoryFromContext(r.Context())
@@ -193,12 +104,6 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 		return nil
 	}
 
-	p2p := internal.P2PFromContext(ctx)
-	if p2p == nil {
-		log.Println("p2p - P2P not found")
-		return nil
-	}
-
 	info := confidential.GetConfidentialInfo(args.Name, args.PublicKey)
 	// check signature if key is readonly, add is not allowed for anonymous
 	if info.ReadOnly {
@@ -223,17 +128,62 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 		return nil
 	}
 
-	err = p2p.PublishJson(ctx, "Directory.Add", args)
-	if err != nil {
-		// non fatal error
-		log.Printf("p2p - Failed to PublishJson. %s\n", err)
+	if client := internal.IPCFromContext(ctx); client != nil {
+		log.Debug("Forward Message message to IPC client")
+		message, err := p2p.NewMessage("Directory.Add", &args)
+		if err != nil {
+			log.WithError(err).Error("failed to marshal p2P message.")
+			*result = Response{
+				Status: "error",
+			}
+			return nil
+		}
+
+		data, err := json.Marshal(message)
+		if err != nil {
+			log.WithError(err).Error("failed to marshal p2p message")
+			*result = Response{
+				Status: "error",
+			}
+			return nil
+		}
+		resp, err := client.Request(ipc.Message{
+			Type:    ipc.MessageTypeIPC,
+			Payload: string(data),
+		}, "down")
+		if err != nil {
+			log.WithError(err).Error("IPC requext failed")
+			*result = Response{
+				Status: "error",
+			}
+			return nil
+		}
+		if resp.Message != "success" {
+			log.WithField("Message", resp.Message).Warning("IPC Message failed")
+		}
+		log.WithField("Message", resp.Message).Debug("IPC Message sent")
+
+	} else {
+		log.Warning("IPC Client not found in context")
 	}
 
-	*result = Response{
-		Status: "success",
+	if p2P := internal.P2PFromContext(ctx); p2P != nil {
+
+		err := p2P.PublishJson(ctx, "Directory.Add", args)
+		if err != nil {
+			// non fatal error
+			log.Printf("p2P - Failed to PublishJson. %s\n", err)
+		}
+
+		*result = Response{
+			Status: "success",
+		}
+	} else {
+		log.Println("p2P - P2P not found")
+		return nil
 	}
+
 	return nil
-
 }
 
 func removeFromDirectory(directory soroban.Directory, args *DirectoryEntry) error {
@@ -261,9 +211,9 @@ func (t *Directory) Remove(r *http.Request, args *DirectoryEntry, result *Respon
 		}
 	}
 
-	p2p := internal.P2PFromContext(ctx)
-	if p2p == nil {
-		log.Println("p2p - P2P not found")
+	p2P := internal.P2PFromContext(ctx)
+	if p2P == nil {
+		log.Println("p2P - P2P not found")
 		return nil
 	}
 
@@ -276,10 +226,10 @@ func (t *Directory) Remove(r *http.Request, args *DirectoryEntry, result *Respon
 		log.WithError(err).Error("Failed to Remove directory")
 	}
 
-	err = p2p.PublishJson(ctx, "Directory.Remove", args)
+	err = p2P.PublishJson(ctx, "Directory.Remove", args)
 	if err != nil {
 		// non fatal error
-		log.Printf("p2p - Failed to PublishJson. %s\n", err)
+		log.Printf("p2P - Failed to PublishJson. %s\n", err)
 	}
 
 	*result = Response{
@@ -310,7 +260,7 @@ func (p *DirectoryEntries) VerifySignature(info confidential.ConfidentialEntry) 
 		return errors.New("timestamp not in time range")
 	}
 
-	message := fmt.Sprintf("%v.%v", p.Name, p.Timestamp/1000000)
+	message := fmt.Sprintf("%v.%v", p.Name, p.Timestamp)
 	return confidential.VerifySignature(info, p.PublicKey, message, p.Algorithm, p.Signature)
 }
 

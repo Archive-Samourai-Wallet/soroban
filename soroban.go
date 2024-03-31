@@ -5,26 +5,6 @@ import (
 	"time"
 )
 
-type Options struct {
-	Domain        string
-	DirectoryType string
-	Directory     ServerInfo
-	WithTor       bool
-	P2P           P2PInfo
-}
-
-type ServerInfo struct {
-	Hostname string
-	Port     int
-}
-
-type P2PInfo struct {
-	Seed       string
-	Bootstrap  string
-	ListenPort int
-	Room       string
-}
-
 // Service interface
 type Service interface{}
 

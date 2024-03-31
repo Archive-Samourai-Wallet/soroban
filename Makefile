@@ -1,10 +1,14 @@
 all: soroban
 
-SOROBAN_BUILD_IMAGE=golang:1.15.6-alpine3.12
+LC_ALL=C
+COMMIT=$(shell git rev-parse HEAD)
+VERSION=$(shell git describe --abbrev=6)
+DATE=$(shell gdate --utc -d 'today 00:00:00' +'%FT%TZ')
 
 soroban:
-	docker run -ti --rm --name soroban-go-builder -v $$(pwd):/src -w /src ${SOROBAN_BUILD_IMAGE} go build -tags netgo -ldflags="-s -w" -trimpath -o bin/soroban cmd/server/main.go
-	cd bin && sha256sum soroban | tee soroban.sum && cd ..
+	mkdir -p ./bin
+	go build -tags netgo -ldflags="-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.Date=$(DATE)" -trimpath -o ./bin/soroban-server ./cmd/server
+	cd bin && sha256sum soroban-server | tee soroban-server.sum && cd ..
 
 docker:
 	docker build -t samourai-soroban .

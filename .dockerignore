@@ -2,3 +2,4 @@ docker
 Dockerfile*
 docker-compose.yml
 clients
+bin

@@ -11,6 +11,9 @@ func TimeToLive(mode string) time.Duration {
 	}
 
 	switch mode {
+	case "fast":
+		return 15 * time.Second
+
 	case "short":
 		return time.Minute
 
