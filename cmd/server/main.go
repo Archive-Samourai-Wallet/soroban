@@ -157,6 +157,7 @@ func run() error {
 
 	if len(options.Soroban.Announce) > 0 {
 		go services.StartAnnounce(ctx, options.Soroban.Announce,
+			Version,
 			fmt.Sprintf("http://%s.onion", sorobanServer.ID()),
 			// fmt.Sprintf("http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port),
 		)
