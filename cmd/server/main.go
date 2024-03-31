@@ -151,15 +151,23 @@ func run() error {
 
 	if len(sorobanServer.ID()) != 0 {
 		log.Infof("Soroban started: http://%s.onion", sorobanServer.ID())
-	} else {
+	}
+	if !options.Soroban.WithTor || (options.Soroban.IPv4 && options.Soroban.Hostname != "0.0.0.0") {
 		log.Infof("Soroban started: http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port)
 	}
 
 	if len(options.Soroban.Announce) > 0 {
+		var announces []string
+		if len(sorobanServer.ID()) > 0 {
+			announces = append(announces, fmt.Sprintf("http://%s.onion", sorobanServer.ID()))
+		}
+		if options.Soroban.IPv4 {
+			announces = append(announces, fmt.Sprintf("http://%s:%d", options.Soroban.Hostname, options.Soroban.Port))
+		}
+
 		go services.StartAnnounce(ctx, options.Soroban.Announce,
 			Version,
-			fmt.Sprintf("http://%s.onion", sorobanServer.ID()),
-			// fmt.Sprintf("http://%s:%d/", options.Soroban.Hostname, options.Soroban.Port),
+			announces...,
 		)
 	}
 

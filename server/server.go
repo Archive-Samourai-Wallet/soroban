@@ -66,12 +66,14 @@ func New(ctx context.Context, options soroban.Options) (context.Context, *Soroba
 
 	ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, directory)
 	ctx = context.WithValue(ctx, internal.SorobanP2PKey, &p2p.P2P{OnMessage: make(chan p2p.Message)})
-	ctx = context.WithValue(ctx, internal.SorobanIPCKey, ipc.New(ctx, ipc.IPCOptions{
-		Mode:     ipcMode,
-		Subject:  options.IPC.Subject,
-		NatsHost: options.IPC.NatsHost,
-		NatsPort: options.IPC.NatsPort,
-	}))
+	if options.IPC.ChildProcessCount > 0 || options.IPC.ChildID > 0 {
+		ctx = context.WithValue(ctx, internal.SorobanIPCKey, ipc.New(ctx, ipc.IPCOptions{
+			Mode:     ipcMode,
+			Subject:  options.IPC.Subject,
+			NatsHost: options.IPC.NatsHost,
+			NatsPort: options.IPC.NatsPort,
+		}))
+	}
 
 	log.WithFields(log.Fields{
 		"ipcMode":               ipcMode,

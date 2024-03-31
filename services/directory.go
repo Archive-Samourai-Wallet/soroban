@@ -162,9 +162,6 @@ func (t *Directory) Add(r *http.Request, args *DirectoryEntry, result *Response)
 			log.WithField("Message", resp.Message).Warning("IPC Message failed")
 		}
 		log.WithField("Message", resp.Message).Debug("IPC Message sent")
-
-	} else {
-		log.Warning("IPC Client not found in context")
 	}
 
 	if p2P := internal.P2PFromContext(ctx); p2P != nil {
