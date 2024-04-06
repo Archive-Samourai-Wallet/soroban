@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"context"
-	"log"
 	"time"
 
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -10,6 +9,8 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/p2p/discovery/routing"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous string, ready chan struct{}) {
@@ -17,7 +18,7 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 
 	err := advertize(ctx, routingDiscovery, rendezvous, 3)
 	if err != nil {
-		log.Panic("Advertise failed, giving up")
+		log.WithError(err).Panic("Advertise failed, giving up")
 	}
 
 	// advertize daemon
@@ -27,7 +28,7 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 			case <-time.After(5 * time.Minute):
 				err := advertize(ctx, routingDiscovery, rendezvous, 10)
 				if err != nil {
-					log.Panic("Advertise failed, giving up")
+					log.WithError(err).Error("Advertise failed, retrying")
 				}
 
 			case <-ctx.Done():
@@ -49,7 +50,7 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 
 			peers, err := routingDiscovery.FindPeers(ctx, rendezvous)
 			if err != nil {
-				log.Printf("failed to FindPeers. %s", err)
+				log.WithError(err).Error("failed to FindPeers")
 				continue
 			}
 
@@ -62,13 +63,14 @@ func Discover(ctx context.Context, h host.Host, dht *dht.IpfsDHT, rendezvous str
 					_, err = h.Network().DialPeer(ctx, p.ID)
 					// fmt.Printf("Connected to peer %s\n", p.ID.Pretty())
 					if err != nil {
+						log.WithError(err).WithField("PeerID", p.ID).Warning("failed to connect to peer")
 						continue
 					}
 					newPeersCount++
 				}
 			}
 			if newPeersCount > 0 {
-				log.Printf("Connected to new peers %d", newPeersCount)
+				log.WithField("Count", newPeersCount).Info("Connected to new peers")
 			}
 		}
 	}
@@ -79,14 +81,14 @@ func advertize(ctx context.Context, routingDiscovery *routing.RoutingDiscovery, 
 	for i := 0; i < retry; i++ {
 		_, err := routingDiscovery.Advertise(ctx, rendezvous, discovery.TTL(15*time.Minute))
 		if err != nil {
-			log.Printf("failed to Advertise. %s", err)
+			log.WithError(err).Error("failed to Advertise")
 
 			// wait 1 minute to retry
 			<-time.After(time.Minute)
 			continue
 		}
 
-		log.Printf("Advertise Complete")
+		log.Info("Advertise Complete")
 
 		break
 	}
