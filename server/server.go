@@ -23,7 +23,7 @@ import (
 	"github.com/cretz/bine/tor"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/rpc"
-	"github.com/gorilla/rpc/json"
+	gjson "github.com/gorilla/rpc/json"
 	"github.com/rs/cors"
 	log "github.com/sirupsen/logrus"
 )
@@ -197,8 +197,8 @@ func New(ctx context.Context, options soroban.Options) (context.Context, *Soroba
 
 	rpcServer := rpc.NewServer()
 
-	rpcServer.RegisterCodec(json.NewCodec(), "application/json")
-	rpcServer.RegisterCodec(json.NewCodec(), "application/json;charset=UTF-8")
+	rpcServer.RegisterCodec(gjson.NewCodec(), "application/json")
+	rpcServer.RegisterCodec(gjson.NewCodec(), "application/json;charset=UTF-8")
 
 	http.Handle("/rpc", rpcServer)
 
@@ -281,8 +281,12 @@ func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Lis
 		AllowCredentials: true,
 	})
 
+	stats := NewStats()
+	rpcHandler := WrapHandler(stats.Middleware((p.rpcServer)))
+
 	router := mux.NewRouter()
-	router.HandleFunc("/rpc", WrapHandler(p.rpcServer))
+	router.HandleFunc("/rpc", rpcHandler)
+	router.HandleFunc("/stats", stats.StatsHandler)
 	router.HandleFunc("/status", StatusHandler)
 
 	// Create http.Server with returning redis in context
