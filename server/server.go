@@ -228,7 +228,7 @@ func (p *Soroban) Register(ctx context.Context, name string, receiver soroban.Se
 
 func (p *Soroban) Start(ctx context.Context, hostname string, port int) error {
 	// start without listener
-	go p.startServer(ctx, fmt.Sprintf("%s:%d", hostname, port), nil)
+	go p.startServer(hostname, port, nil)
 
 	return nil
 }
@@ -250,29 +250,23 @@ func (p *Soroban) StartWithTor(ctx context.Context, hostname string, port int, s
 	listenCtx, listenCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer listenCancel()
 
-	localListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", hostname, port))
-	if err != nil {
-		return err
-	}
-
+	var err error
 	p.onion, err = p.t.Listen(listenCtx,
 		&tor.ListenConf{
-			LocalListener: localListener,
-			LocalPort:     port,
-			RemotePorts:   []int{80},
-			Key:           key,
+			RemotePorts: []int{80},
+			Key:         key,
 		})
 	if err != nil {
 		return err
 	}
 
 	// start with listener
-	go p.startServer(ctx, fmt.Sprintf("%s:%d", hostname, port), p.onion)
+	go p.startServer(hostname, port, p.onion)
 
 	return nil
 }
 
-func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Listener) {
+func (p *Soroban) startServer(hostname string, port int, listener net.Listener) {
 	p.started <- true
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"}, // Use your allowed origin here
@@ -289,32 +283,23 @@ func (p *Soroban) startServer(ctx context.Context, addr string, listener net.Lis
 	router.HandleFunc("/stats", stats.StatsHandler)
 	router.HandleFunc("/status", StatusHandler)
 
-	// Create http.Server with returning redis in context
-	srv := http.Server{
-		Addr: addr, // addr can be empty
+	mainHandler := c.Handler(router)
 
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
-			if p.p2p != nil {
-				ctx = context.WithValue(ctx, internal.SorobanP2PKey, p.p2p)
-			}
-			if p.ipc != nil {
-				ctx = context.WithValue(ctx, internal.SorobanIPCKey, p.ipc)
-			}
-
-			return ctx
-		},
-		Handler: c.Handler(router),
-	}
-
-	var err error
 	if listener != nil {
-		err = srv.Serve(listener) // use specified http listener
-	} else {
-		err = srv.ListenAndServe()
+		go func() {
+			torServer := p.createHttpServer("", mainHandler, TorListener)
+			err := torServer.Serve(listener)
+			if err != http.ErrServerClosed {
+				log.WithError(err).Error("Tor Http Server exited")
+			}
+		}()
 	}
+
+	addr := fmt.Sprintf("%s:%d", hostname, port)
+	ipv4Server := p.createHttpServer(addr, mainHandler, IPv4Listener)
+	err := ipv4Server.ListenAndServe()
 	if err != http.ErrServerClosed {
-		log.Warning("Http Server exited")
+		log.WithError(err).Error("IPv4 Http Server exited")
 	}
 }
 
@@ -337,4 +322,24 @@ func (p *Soroban) Stop(ctx context.Context) {
 
 func (p *Soroban) WaitForStart(ctx context.Context) {
 	<-p.started
+}
+
+func (p *Soroban) createHttpServer(addr string, handler http.Handler, listenerType ListenerType) http.Server {
+
+	return http.Server{
+		Addr: addr,
+
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			ctx = context.WithValue(ctx, internal.SorobanDirectoryKey, p.directory)
+			if p.p2p != nil {
+				ctx = context.WithValue(ctx, internal.SorobanP2PKey, p.p2p)
+			}
+			if p.ipc != nil {
+				ctx = context.WithValue(ctx, internal.SorobanIPCKey, p.ipc)
+			}
+
+			return ctx
+		},
+		Handler: addListenerType(handler, listenerType),
+	}
 }
