@@ -26,7 +26,7 @@ func (p *P2P) Valid() bool {
 	return p.topic != nil
 }
 
-func (p *P2P) Start(ctx context.Context, p2pSeed string, listenPort int, bootstrap, room string, ready chan struct{}) error {
+func (p *P2P) Start(ctx context.Context, p2pSeed string, hostname string, listenPort int, bootstrap, room string, ready chan struct{}) error {
 	ctx = network.WithDialPeerTimeout(ctx, 3*time.Minute)
 	defer func() {
 		ready <- struct{}{}
@@ -43,13 +43,15 @@ func (p *P2P) Start(ctx context.Context, p2pSeed string, listenPort int, bootstr
 
 	// fallback to clearnet
 	if len(opts) == 0 {
+		log.Info("P2P Start clearnet")
 		opts = append(opts, []libp2p.Option{
-			libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", listenPort)),
+			libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", hostname, listenPort)),
 			libp2p.DefaultTransports,
 			libp2p.DefaultMuxers,
-			libp2p.DefaultSecurity,
-			libp2p.NATPortMap(),
-			libp2p.FallbackDefaults,
+			libp2p.NoSecurity,
+			libp2p.RandomIdentity,
+			libp2p.DefaultPeerstore,
+			libp2p.DefaultMultiaddrResolver,
 		}...)
 	}
 

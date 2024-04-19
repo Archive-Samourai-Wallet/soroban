@@ -34,8 +34,10 @@ func startChildSoroban(ctx context.Context, options soroban.Options, childID int
 		"--ipcChildID", strconv.Itoa(childID),
 		"--ipcNatsHost", options.IPC.NatsHost,
 		"--ipcNatsPort", strconv.Itoa(options.IPC.NatsPort),
+		"--p2pSeed", options.P2P.Seed,
 		"--p2pBootstrap", options.P2P.Bootstrap,
 		"--p2pRoom", options.P2P.Room,
+		"--p2pHostname", options.P2P.Hostname,
 		"--p2pListenPort", strconv.Itoa(options.P2P.ListenPort+childID),
 		"--log", log.GetLevel().String(),
 	)

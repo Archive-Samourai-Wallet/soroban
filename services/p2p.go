@@ -13,7 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPort int, room string, ready chan struct{}) {
+func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, hostname string, listenPort int, room string, ready chan struct{}) {
 	if len(bootstrap) == 0 {
 		log.Error("Invalid bootstrap")
 		return
@@ -37,7 +37,7 @@ func StartP2PDirectory(ctx context.Context, p2pSeed, bootstrap string, listenPor
 
 	p2pReady := make(chan struct{})
 	go func() {
-		err := p2P.Start(ctx, p2pSeed, listenPort, bootstrap, room, p2pReady)
+		err := p2P.Start(ctx, p2pSeed, hostname, listenPort, bootstrap, room, p2pReady)
 		if err != nil {
 			log.WithError(err).Error("Failed to p2P.Start")
 		}

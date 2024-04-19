@@ -10,6 +10,7 @@ soroban:
   port: 4242
 p2p:
   room: prod-samourai-whilrpool
+  hostname: ""
   listenport: 1042
   bootstrap: "/onion3/b6jza7z6dil564arui6gev4fmzzrppng62ixjyh66xn7fl227igs56id:1040/p2p/16Uiu2HAmKrVASuXgi7NsJZuVYu2Xqx82NkGewcfEuHKZuHq7adjB"
   seed: auto

@@ -21,8 +21,9 @@ var (
 			Port:          4242,
 		},
 		P2P: P2PInfo{
-			Seed:       "auto",
+			Seed:       "",
 			Bootstrap:  "",
+			Hostname:   "",
 			ListenPort: 1042,
 			Room:       "samourai-p2p",
 		},
@@ -115,6 +116,7 @@ func (p *SorobanInfo) Merge(s SorobanInfo) {
 type P2PInfo struct {
 	Seed       string
 	Bootstrap  string
+	Hostname   string
 	ListenPort int
 	Room       string
 }
@@ -125,6 +127,9 @@ func (p *P2PInfo) Merge(i P2PInfo) {
 	}
 	if len(i.Bootstrap) > 0 {
 		p.Bootstrap = i.Bootstrap
+	}
+	if len(i.Hostname) > 0 {
+		p.Hostname = i.Hostname
 	}
 	if i.ListenPort > 0 {
 		p.ListenPort = i.ListenPort
